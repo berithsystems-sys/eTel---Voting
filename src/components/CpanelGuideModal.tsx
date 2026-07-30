@@ -66,11 +66,29 @@ require('./dist/server.cjs');`;
           <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
             <div className="font-bold text-slate-900 flex items-center gap-2 text-sm">
               <Server className="w-4 h-4 text-indigo-600" />
-              Step 2: Upload Files to cPanel / hPanel
+              Step 2: Upload Files & Setup phpMyAdmin Database
             </div>
             <p className="text-slate-600 leading-relaxed">
-              In cPanel File Manager (or hPanel File Manager), create a folder for your app (e.g. <code className="bg-slate-200 px-1 py-0.5 rounded font-mono">/election-runner</code>) and upload the built zip folder containing <code className="bg-slate-200 px-1 py-0.5 rounded font-mono">package.json</code>, <code className="bg-slate-200 px-1 py-0.5 rounded font-mono">dist/</code>, and <code className="bg-slate-200 px-1 py-0.5 rounded font-mono">.env</code>.
+              In cPanel File Manager (or hPanel File Manager), create a folder for your app (e.g. <code className="bg-slate-200 px-1 py-0.5 rounded font-mono">/election-runner</code>) and upload the built project containing <code className="bg-slate-200 px-1 py-0.5 rounded font-mono">package.json</code>, <code className="bg-slate-200 px-1 py-0.5 rounded font-mono">dist/</code>, and <code className="bg-slate-200 px-1 py-0.5 rounded font-mono">.env</code>.
             </p>
+            <div className="bg-indigo-50/80 p-3 rounded-xl text-indigo-900 text-xs border border-indigo-100 space-y-1">
+              <span className="font-bold">🗄️ phpMyAdmin Database Configuration:</span>
+              <p className="text-slate-700">
+                1. Create a MySQL database in cPanel / hPanel and open <strong>phpMyAdmin</strong>.<br/>
+                2. Import the included <code className="font-mono bg-white px-1 font-bold">schema.sql</code> file, or let the app automatically create tables on boot.<br/>
+                3. In your cPanel Node.js app environment variables (or <code className="font-mono bg-white px-1">.env</code>), set:
+                <code className="block font-mono bg-slate-900 text-indigo-300 p-2 rounded-lg mt-1 text-[11px]">
+                  DB_HOST=localhost<br/>
+                  DB_PORT=3306<br/>
+                  DB_USER=your_cpanel_db_user<br/>
+                  DB_PASSWORD=your_db_password<br/>
+                  DB_NAME=your_cpanel_db_name
+                </code>
+              </p>
+              <p className="text-[11px] text-emerald-700 font-semibold pt-1">
+                ✅ Safe Redeployment: The app uses <code className="font-mono">CREATE TABLE IF NOT EXISTS</code> and checks existing records so updating code or redeploying NEVER overwrites or replaces your live phpMyAdmin tables or voter data!
+              </p>
+            </div>
           </div>
 
           <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
