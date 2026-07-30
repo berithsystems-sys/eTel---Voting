@@ -19,7 +19,8 @@ import {
   savePaymentGateway,
   getPaymentTransactions,
   addPaymentTransaction,
-  isDbConnected
+  isDbConnected,
+  getDbDebugInfo
 } from './src/db/mysql';
 import { Voter, AuditLog, VoteSubmission, BallotReceiptData, UserProfile, PaymentTransaction } from './src/types';
 
@@ -37,6 +38,38 @@ app.get('/api/health', (req, res) => {
     app: 'eTelna Platform',
     nodeVersion: process.version,
     databaseConnected: isDbConnected()
+  });
+});
+
+// Debug & Connection Testing Endpoint
+app.get('/api/debug', (req, res) => {
+  const dbInfo = getDbDebugInfo();
+  res.json({
+    timestamp: new Date().toISOString(),
+    status: 'online',
+    server: {
+      nodeVersion: process.version,
+      uptimeSeconds: Math.floor(process.uptime()),
+      memoryUsageMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024 * 100) / 100,
+      environment: process.env.NODE_ENV || 'development',
+      port: PORT
+    },
+    database: {
+      connected: dbInfo.isMySqlConnected,
+      host: dbInfo.dbHost,
+      port: dbInfo.dbPort,
+      user: dbInfo.dbUser,
+      databaseName: dbInfo.dbName,
+      hasPasswordConfigured: dbInfo.hasPassword,
+      lastError: dbInfo.lastDbError
+    },
+    troubleshootingTips: [
+      'If database.connected is false, verify DB_HOST, DB_USER, DB_PASSWORD, DB_NAME in your server environment or .env file.',
+      'For cPanel / hPanel hosting: Ensure DB_HOST is usually "localhost" or "127.0.0.1".',
+      'Make sure the database user has ALL PRIVILEGES assigned on the database in cPanel MySQL Databases.',
+      'If using remote MySQL, check cPanel Remote MySQL to allow connection from your app IP address.',
+      'If MySQL is offline, eTelna automatically operates on high-speed in-memory fallback state so your app never returns 503!'
+    ]
   });
 });
 
@@ -469,9 +502,6 @@ require('./dist/server.cjs');`,
 
 // Vite / Static Files Middleware setup
 async function startServer() {
-  // Initialize MySQL connection and create tables if they do not exist
-  await initDb();
-
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -486,8 +516,13 @@ async function startServer() {
     });
   }
 
+  // Start HTTP server immediately to avoid 503 gateway timeouts from hosting health checks
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`🚀 eTelna Server running on http://localhost:${PORT}`);
+    // Initialize MySQL database connection in background
+    initDb().catch(err => {
+      console.error('Background MySQL initialization error:', err);
+    });
   });
 }
 

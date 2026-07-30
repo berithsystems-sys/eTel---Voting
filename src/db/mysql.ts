@@ -11,6 +11,19 @@ const dbName = process.env.DB_NAME || process.env.MYSQL_DATABASE || 'etelna_voti
 
 let pool: mysql.Pool | null = null;
 let isMySqlConnected = false;
+let lastDbError: string | null = null;
+
+export function getDbDebugInfo() {
+  return {
+    isMySqlConnected,
+    lastDbError,
+    dbHost: dbHost || '(Not set)',
+    dbPort,
+    dbUser: dbUser || '(Not set)',
+    dbName: dbName || '(Not set)',
+    hasPassword: Boolean(dbPassword)
+  };
+}
 
 // Fallback in-memory state if MySQL is not configured or unavailable
 let memoryElection: Election = JSON.parse(JSON.stringify(initialElection));
@@ -60,7 +73,9 @@ let memoryTransactions: PaymentTransaction[] = [
 
 export async function initDb(): Promise<boolean> {
   if (!dbHost || !dbUser) {
-    console.log('ℹ️ MySQL DB_HOST / DB_USER environment variables not configured. Running with in-memory persistence.');
+    const msg = 'MySQL DB_HOST / DB_USER environment variables not configured. Running with in-memory persistence.';
+    console.log(`ℹ️ ${msg}`);
+    lastDbError = msg;
     isMySqlConnected = false;
     return false;
   }
@@ -74,13 +89,15 @@ export async function initDb(): Promise<boolean> {
       database: dbName,
       waitForConnections: true,
       connectionLimit: 10,
-      queueLimit: 0
+      queueLimit: 0,
+      connectTimeout: 5000 // 5 seconds connection timeout
     });
 
     // Test connection
     const connection = await pool.getConnection();
     console.log(`✅ Successfully connected to phpMyAdmin MySQL database: ${dbName} @ ${dbHost}`);
     connection.release();
+    lastDbError = null;
 
     // Initialize SQL Tables (CREATE TABLE IF NOT EXISTS preserves all existing data and tables on redeployment)
     await pool.query(`
@@ -289,9 +306,11 @@ export async function initDb(): Promise<boolean> {
 
     isMySqlConnected = true;
     return true;
-  } catch (error) {
-    console.error('❌ Failed to connect to MySQL database:', error);
+  } catch (error: any) {
+    const errMessage = error?.message || String(error);
+    console.error('❌ Failed to connect to MySQL database:', errMessage);
     console.log('⚠️ Falling back to in-memory store. Verify your DB_HOST, DB_USER, DB_PASSWORD, DB_NAME settings.');
+    lastDbError = errMessage;
     isMySqlConnected = false;
     return false;
   }
