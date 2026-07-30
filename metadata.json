@@ -1,0 +1,6 @@
+{
+  "name": "eTelna - Online Voting & Election Platform",
+  "description": "Secure, scalable online voting and election management platform with Free and Premium organizer tiers, payment gateway integrations, and multi-option authentication.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
