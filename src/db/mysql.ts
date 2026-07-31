@@ -507,7 +507,8 @@ export async function validateUserLogin(emailInput: string, passwordInput?: stri
       plan: 'PREMIUM',
       authProvider: 'email',
       electionsCreatedCount: 0,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      isLoggedIn: true
     };
     await saveCurrentUser(adminUser);
     return adminUser;
@@ -531,7 +532,8 @@ export async function validateUserLogin(emailInput: string, passwordInput?: stri
           plan: r.plan || 'FREE',
           authProvider: r.authProvider || 'email',
           electionsCreatedCount: r.electionsCreatedCount || 0,
-          createdAt: r.createdAt || new Date().toISOString()
+          createdAt: r.createdAt || new Date().toISOString(),
+          isLoggedIn: true
         };
         await saveCurrentUser(userObj);
         return userObj;
@@ -552,7 +554,8 @@ export async function validateUserLogin(emailInput: string, passwordInput?: stri
     plan: userRole === 'SUPER_ADMIN' ? 'PREMIUM' : 'FREE',
     authProvider: 'email',
     electionsCreatedCount: 0,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    isLoggedIn: true
   };
   await saveCurrentUser(newUser);
   return newUser;

@@ -3,7 +3,7 @@ import { Election, Voter, AuditLog } from '../types';
 export const initialElection: Election = {
   id: 'election-1001',
   title: 'New Election',
-  status: 'Draft',
+  status: 'Active',
   startDate: new Date().toISOString(),
   endDate: new Date(Date.now() + 86400000 * 7).toISOString(),
   timezone: 'Asia/Kolkata',

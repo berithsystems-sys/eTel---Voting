@@ -14,6 +14,7 @@ import { CpanelGuideModal } from './components/CpanelGuideModal';
 import { AuthModal } from './components/AuthModal';
 import { PaymentModal } from './components/PaymentModal';
 import { AdminTierSettingsModal } from './components/AdminTierSettingsModal';
+import { AdminLoginGuard } from './components/AdminLoginGuard';
 
 import { ExternalLink, Vote } from 'lucide-react';
 import { Election, Voter, AuditLog, UserProfile, AdminTierConfig, PaymentGatewayConfig } from './types';
@@ -25,7 +26,8 @@ import {
   addVoters,
   deleteVoter,
   fetchAuditLogs,
-  fetchAuthMe
+  fetchAuthMe,
+  logoutUser
 } from './services/api';
 
 export default function App() {
@@ -51,15 +53,16 @@ export default function App() {
 
   // Auth & Tier State
   const [currentUser, setCurrentUser] = useState<UserProfile>({
-    id: 'usr-organizer-01',
-    email: 'organizer@etelna.org',
-    name: 'Demo Organizer',
-    photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    id: 'guest',
+    email: '',
+    name: 'Guest Visitor',
+    photoUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
     role: 'ORGANIZER',
     plan: 'FREE',
-    authProvider: 'google',
-    electionsCreatedCount: 1,
-    createdAt: new Date().toISOString()
+    authProvider: 'email',
+    electionsCreatedCount: 0,
+    createdAt: new Date().toISOString(),
+    isLoggedIn: false
   });
 
   const [tierConfig, setTierConfig] = useState<AdminTierConfig>({
@@ -180,6 +183,18 @@ export default function App() {
     await handleUpdateElection({ status: newStatus });
   };
 
+  const handleLogout = async () => {
+    try {
+      const res = await logoutUser();
+      setCurrentUser(res.user);
+    } catch (err) {
+      setCurrentUser({
+        ...currentUser,
+        isLoggedIn: false
+      });
+    }
+  };
+
   if (isLoading || !election) {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white space-y-4">
@@ -199,11 +214,23 @@ export default function App() {
         election={election}
         activeView={activeView}
         setActiveView={changeView}
-        onOpenCpanelModal={() => setIsCpanelGuideOpen(true)}
         currentUser={currentUser}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
-        onOpenPaymentModal={() => setIsPaymentModalOpen(true)}
-        onOpenAdminSettingsModal={() => setIsAdminSettingsModalOpen(true)}
+        onOpenPaymentModal={() => {
+          if (!currentUser.isLoggedIn) {
+            setIsAuthModalOpen(true);
+          } else {
+            setIsPaymentModalOpen(true);
+          }
+        }}
+        onOpenAdminSettingsModal={() => {
+          if (!currentUser.isLoggedIn) {
+            setIsAuthModalOpen(true);
+          } else {
+            setIsAdminSettingsModalOpen(true);
+          }
+        }}
+        onLogout={handleLogout}
       />
 
       {/* VIEW SWITCH: LANDING PAGE HUB */}
@@ -224,9 +251,19 @@ export default function App() {
           sampleVoters={voters}
           onBackToAdmin={() => changeView('admin')}
         />
+      ) : !currentUser.isLoggedIn ? (
+        /* VIEW SWITCH: ADMIN LOGIN GUARD */
+        <AdminLoginGuard
+          onLoginSuccess={(updatedUser) => {
+            setCurrentUser(updatedUser);
+            setActiveAdminTab('overview');
+          }}
+          onOpenAuthModal={() => setIsAuthModalOpen(true)}
+          onBackToLanding={() => changeView('landing')}
+        />
       ) : (
 
-        /* VIEW SWITCH: ADMIN DASHBOARD */
+        /* VIEW SWITCH: ADMIN DASHBOARD (AUTHENTICATED ONLY) */
         <div className="flex-1 flex w-full max-w-7xl mx-auto min-h-0">
           
           {/* Admin Sidebar Navigation */}
@@ -371,6 +408,7 @@ export default function App() {
         onClose={() => setIsAuthModalOpen(false)}
         currentUser={currentUser}
         onAuthSuccess={(updatedUser) => setCurrentUser(updatedUser)}
+        onLogout={handleLogout}
       />
 
       {/* Payment Gateway Upgrade Checkout Modal */}

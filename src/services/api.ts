@@ -28,6 +28,12 @@ export async function loginGoogle(googleEmail: string, googleName: string, googl
   return res.json();
 }
 
+export async function logoutUser(): Promise<{ success: boolean; user: UserProfile }> {
+  const res = await fetch(`${BASE}/auth/logout`, { method: 'POST' });
+  if (!res.ok) throw new Error('Logout failed');
+  return res.json();
+}
+
 export async function switchRole(role?: 'ORGANIZER' | 'SUPER_ADMIN', plan?: 'FREE' | 'PREMIUM'): Promise<{ success: boolean; user: UserProfile }> {
   const res = await fetch(`${BASE}/auth/switch-role`, {
     method: 'POST',

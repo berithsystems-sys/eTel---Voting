@@ -1,20 +1,22 @@
 import React, { useState } from 'react';
-import { X, Mail, Lock, User, ShieldCheck, Sparkles, CheckCircle2 } from 'lucide-react';
+import { X, Mail, Lock, User } from 'lucide-react';
 import { UserProfile } from '../types';
-import { loginEmail, loginGoogle, switchRole } from '../services/api';
+import { loginEmail, loginGoogle } from '../services/api';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: UserProfile;
   onAuthSuccess: (user: UserProfile) => void;
+  onLogout?: () => void;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
   isOpen,
   onClose,
   currentUser,
-  onAuthSuccess
+  onAuthSuccess,
+  onLogout
 }) => {
   const [authTab, setAuthTab] = useState<'email' | 'google'>('email');
   const [isSignUp, setIsSignUp] = useState(false);
@@ -23,27 +25,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [googleEmail, setGoogleEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  // Mock Google Accounts for One-Tap speed testing
-  const mockGoogleAccounts = [
-    {
-      name: 'Sarah Jenkins',
-      email: 'sarah.j@gmail.com',
-      photo: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80'
-    },
-    {
-      name: 'David Miller',
-      email: 'dmiller.tech@gmail.com',
-      photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'
-    },
-    {
-      name: 'Elena Rostova',
-      email: 'elena.rostova@gmail.com',
-      photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
-    }
-  ];
 
   if (!isOpen) return null;
 
@@ -114,19 +98,45 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               className="w-8 h-8 rounded-full object-cover border border-slate-200 shrink-0"
             />
             <div className="min-w-0">
-              <div className="font-extrabold text-slate-900 truncate">{currentUser.name}</div>
-              <div className="text-[10px] text-slate-500 truncate">{currentUser.email}</div>
+              <div className="font-extrabold text-slate-900 truncate">
+                {currentUser.isLoggedIn ? currentUser.name : 'Guest Visitor (Not Logged In)'}
+              </div>
+              <div className="text-[10px] text-slate-500 truncate">
+                {currentUser.isLoggedIn ? currentUser.email : 'Log in to access Admin features'}
+              </div>
             </div>
           </div>
-          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-            currentUser.role === 'SUPER_ADMIN'
-              ? 'bg-purple-100 text-purple-800'
-              : currentUser.plan === 'PREMIUM'
-              ? 'bg-emerald-100 text-emerald-800'
-              : 'bg-amber-100 text-amber-800'
-          }`}>
-            {currentUser.role === 'SUPER_ADMIN' ? 'SUPER ADMIN' : `${currentUser.plan} ORGANIZER`}
-          </span>
+          <div className="flex items-center gap-2">
+            {currentUser.isLoggedIn ? (
+              <>
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  currentUser.role === 'SUPER_ADMIN'
+                    ? 'bg-purple-100 text-purple-800'
+                    : currentUser.plan === 'PREMIUM'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-amber-100 text-amber-800'
+                }`}>
+                  {currentUser.role === 'SUPER_ADMIN' ? 'SUPER ADMIN' : `${currentUser.plan} ORGANIZER`}
+                </span>
+                {onLogout && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onLogout();
+                      onClose();
+                    }}
+                    className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-lg text-[10px] transition-all cursor-pointer border border-red-200"
+                  >
+                    Sign Out
+                  </button>
+                )}
+              </>
+            ) : (
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700">
+                GUEST
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Tab Switcher: Email vs Google */}
@@ -164,31 +174,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {/* TAB 1: EMAIL SIGN IN / SIGN UP */}
         {authTab === 'email' && (
           <form onSubmit={handleEmailSubmit} className="space-y-3 text-xs">
-            {/* Super Admin Credentials Box */}
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 font-extrabold text-amber-900">
-                  <ShieldCheck className="w-4 h-4 text-amber-600" />
-                  <span>Admin Credentials</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail('admin@etelna.com');
-                    setPassword('admin123');
-                    setIsSignUp(false);
-                  }}
-                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-[10px] transition-all cursor-pointer shadow-xs"
-                >
-                  Auto-Fill Admin
-                </button>
-              </div>
-              <div className="text-[11px] text-amber-800 space-y-0.5 font-mono bg-white/70 p-2 rounded-xl border border-amber-100">
-                <div><span className="font-bold">Email/Username:</span> admin@etelna.com</div>
-                <div><span className="font-bold">Password:</span> admin123</div>
-              </div>
-            </div>
-
             {isSignUp && (
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Full Name</label>
@@ -197,7 +182,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Alex Rivera"
+                    placeholder="Full Name"
                     value={name}
                     onChange={e => setName(e.target.value)}
                     className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 font-medium"
@@ -213,7 +198,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="admin@etelna.com or organizer@example.com"
+                  placeholder="Enter email or username"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 font-medium"
@@ -259,65 +244,50 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         {/* TAB 2: GOOGLE SIGN-IN */}
         {authTab === 'google' && (
-          <div className="space-y-4 text-xs">
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            if (!googleEmail) return;
+            setIsLoading(true);
+            setErrorMsg(null);
+            try {
+              const gName = googleEmail.split('@')[0] || 'Google User';
+              const res = await loginGoogle(googleEmail.trim(), gName);
+              onAuthSuccess(res.user);
+              onClose();
+            } catch (err: any) {
+              setErrorMsg(err.message || 'Google Auth failed');
+            } finally {
+              setIsLoading(false);
+            }
+          }} className="space-y-4 text-xs">
             <p className="text-slate-500 leading-relaxed">
-              Authenticate instantly using your Google Account for seamless single sign-on:
+              Authenticate using your Google Workspace or Gmail account:
             </p>
 
-            <div className="space-y-2">
-              {mockGoogleAccounts.map((acc, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleGoogleSelect(acc.name, acc.email, acc.photo)}
-                  className="w-full p-3 bg-slate-50 hover:bg-indigo-50/80 border border-slate-200 hover:border-indigo-300 rounded-2xl flex items-center justify-between transition-all text-left"
-                >
-                  <div className="flex items-center gap-3">
-                    <img src={acc.photo} alt={acc.name} className="w-9 h-9 rounded-full object-cover" />
-                    <div>
-                      <div className="font-bold text-slate-900">{acc.name}</div>
-                      <div className="text-[11px] text-slate-500">{acc.email}</div>
-                    </div>
-                  </div>
-                  <span className="text-[11px] font-bold text-indigo-600 bg-white px-2.5 py-1 rounded-lg border border-indigo-100">
-                    Sign In
-                  </span>
-                </button>
-              ))}
+            <div>
+              <label className="font-bold text-slate-700 block mb-1">Google Email Address</label>
+              <div className="relative">
+                <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                <input
+                  type="email"
+                  required
+                  placeholder="name@gmail.com"
+                  value={googleEmail}
+                  onChange={e => setGoogleEmail(e.target.value)}
+                  className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 font-medium"
+                />
+              </div>
             </div>
-          </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer"
+            >
+              {isLoading ? 'Connecting Google Account...' : 'Continue with Google'}
+            </button>
+          </form>
         )}
-
-        {/* SUPER ADMIN & ROLE SWITCHER (For Testing & Demo) */}
-        <div className="p-4 bg-slate-900 text-slate-200 rounded-2xl space-y-2 text-xs">
-          <div className="font-bold text-white flex items-center justify-between">
-            <span className="flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-amber-400" />
-              Role Switcher
-            </span>
-            <span className="text-[10px] text-slate-400 font-mono">eTelna Auth Engine</span>
-          </div>
-
-          <div className="grid grid-cols-3 gap-1.5 pt-1">
-            <button
-              onClick={() => handleQuickRoleSwitch('ORGANIZER', 'FREE')}
-              className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold rounded-xl text-[10px] border border-slate-700"
-            >
-              Free Organizer
-            </button>
-            <button
-              onClick={() => handleQuickRoleSwitch('ORGANIZER', 'PREMIUM')}
-              className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold rounded-xl text-[10px] border border-slate-700"
-            >
-              Premium Organizer
-            </button>
-            <button
-              onClick={() => handleQuickRoleSwitch('SUPER_ADMIN', 'PREMIUM')}
-              className="py-1.5 px-2 bg-purple-900/60 hover:bg-purple-800 text-purple-300 font-bold rounded-xl text-[10px] border border-purple-700/50"
-            >
-              Super Admin
-            </button>
-          </div>
-        </div>
 
       </div>
     </div>

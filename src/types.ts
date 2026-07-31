@@ -17,6 +17,7 @@ export interface UserProfile {
   authProvider: 'email' | 'google';
   electionsCreatedCount: number;
   createdAt: string;
+  isLoggedIn?: boolean;
 }
 
 export interface AdminTierConfig {

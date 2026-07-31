@@ -122,10 +122,28 @@ app.post('/api/auth/google-login', async (req, res) => {
     name: googleName || 'Google Auth User',
     photoUrl: googlePhoto || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
     role: 'ORGANIZER',
-    authProvider: 'google'
+    authProvider: 'google',
+    isLoggedIn: true
   };
   await saveCurrentUser(updatedUser);
   res.json({ success: true, user: updatedUser });
+});
+
+app.post('/api/auth/logout', async (req, res) => {
+  const loggedOutUser: UserProfile = {
+    id: 'guest',
+    email: '',
+    name: 'Guest Visitor',
+    photoUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+    role: 'ORGANIZER',
+    plan: 'FREE',
+    authProvider: 'email',
+    electionsCreatedCount: 0,
+    createdAt: new Date().toISOString(),
+    isLoggedIn: false
+  };
+  await saveCurrentUser(loggedOutUser);
+  res.json({ success: true, user: loggedOutUser });
 });
 
 app.post('/api/auth/switch-role', async (req, res) => {
@@ -133,6 +151,7 @@ app.post('/api/auth/switch-role', async (req, res) => {
   const currentUser = await getCurrentUser();
   if (role) currentUser.role = role;
   if (plan) currentUser.plan = plan;
+  currentUser.isLoggedIn = true;
   await saveCurrentUser(currentUser);
   res.json({ success: true, user: currentUser });
 });
