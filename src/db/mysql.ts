@@ -27,17 +27,17 @@ export function getDbDebugInfo() {
 
 // Fallback in-memory state if MySQL is not configured or unavailable
 let memoryElection: Election = JSON.parse(JSON.stringify(initialElection));
-let memoryVoters: Voter[] = JSON.parse(JSON.stringify(initialVoters));
-let memoryAuditLogs: AuditLog[] = JSON.parse(JSON.stringify(initialAuditLogs));
+let memoryVoters: Voter[] = [];
+let memoryAuditLogs: AuditLog[] = [];
 let memoryCurrentUser: UserProfile = {
-  id: 'usr-organizer-01',
-  email: 'organizer@etelna.org',
-  name: 'Demo Organizer',
+  id: 'usr-admin-01',
+  email: 'admin@etelna.com',
+  name: 'System Admin',
   photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-  role: 'ORGANIZER',
-  plan: 'FREE',
-  authProvider: 'google',
-  electionsCreatedCount: 1,
+  role: 'SUPER_ADMIN',
+  plan: 'PREMIUM',
+  authProvider: 'email',
+  electionsCreatedCount: 0,
   createdAt: new Date().toISOString()
 };
 let memoryTierConfig: AdminTierConfig = {
@@ -56,20 +56,8 @@ let memoryPaymentGateway: PaymentGatewayConfig = {
   isEnabled: true,
   currency: 'INR'
 };
-let memoryTransactions: PaymentTransaction[] = [
-  {
-    id: 'tx-1001',
-    userId: 'usr-organizer-02',
-    userName: 'Global Trade Union',
-    userEmail: 'admin@gtu-union.org',
-    amount: 2499,
-    currency: 'INR',
-    provider: 'Razorpay / UPI',
-    status: 'SUCCESS',
-    transactionRef: 'pay_3N1987xAeTelna992',
-    timestamp: new Date(Date.now() - 86400000 * 2).toISOString()
-  }
-];
+let memoryTransactions: PaymentTransaction[] = [];
+
 
 export async function initDb(): Promise<boolean> {
   if (!dbHost || !dbUser) {
@@ -105,6 +93,7 @@ export async function initDb(): Promise<boolean> {
         id VARCHAR(255) PRIMARY KEY,
         email VARCHAR(255) NOT NULL,
         name VARCHAR(255) NOT NULL,
+        password VARCHAR(255) DEFAULT 'admin123',
         photoUrl TEXT,
         role VARCHAR(50) DEFAULT 'ORGANIZER',
         plan VARCHAR(50) DEFAULT 'FREE',
@@ -113,6 +102,13 @@ export async function initDb(): Promise<boolean> {
         createdAt VARCHAR(255)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
+
+    // Ensure password column exists if table was created previously without it
+    try {
+      await pool.query(`ALTER TABLE users ADD COLUMN password VARCHAR(255) DEFAULT 'admin123'`);
+    } catch (e) {
+      // Ignore if column already exists
+    }
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS elections (
@@ -197,7 +193,6 @@ export async function initDb(): Promise<boolean> {
     `);
 
     // SEED INITIAL DATA ONLY IF TABLES ARE COMPLETELY EMPTY
-    // (This guarantees existing phpMyAdmin data is untouched during code updates or redeployments)
     const [electionsCount]: any = await pool.query(`SELECT COUNT(*) as count FROM elections`);
     if (electionsCount[0].count === 0) {
       await pool.query(
@@ -216,7 +211,7 @@ export async function initDb(): Promise<boolean> {
           JSON.stringify(memoryElection.settings)
         ]
       );
-      console.log('🌱 Seeded default election into MySQL (first boot only).');
+      console.log('🌱 Seeded default clean election into MySQL.');
     }
 
     const [votersCount]: any = await pool.query(`SELECT COUNT(*) as count FROM voters`);
@@ -228,7 +223,6 @@ export async function initDb(): Promise<boolean> {
           [v.id, v.voterId, v.voterKey, v.name, v.email, v.weight, v.hasVoted ? 1 : 0, v.votedAt || null, v.ipAddress || null]
         );
       }
-      console.log('🌱 Seeded default voters into MySQL (first boot only).');
     }
 
     const [logsCount]: any = await pool.query(`SELECT COUNT(*) as count FROM audit_logs`);
@@ -245,12 +239,13 @@ export async function initDb(): Promise<boolean> {
     const [usersCount]: any = await pool.query(`SELECT COUNT(*) as count FROM users`);
     if (usersCount[0].count === 0) {
       await pool.query(
-        `INSERT INTO users (id, email, name, photoUrl, role, plan, authProvider, electionsCreatedCount, createdAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO users (id, email, name, password, photoUrl, role, plan, authProvider, electionsCreatedCount, createdAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           memoryCurrentUser.id,
           memoryCurrentUser.email,
           memoryCurrentUser.name,
+          'admin123',
           memoryCurrentUser.photoUrl,
           memoryCurrentUser.role,
           memoryCurrentUser.plan,
@@ -259,7 +254,9 @@ export async function initDb(): Promise<boolean> {
           memoryCurrentUser.createdAt
         ]
       );
+      console.log('🌱 Seeded System Admin user (admin@etelna.com / admin123) into MySQL.');
     }
+
 
     const [tierCount]: any = await pool.query(`SELECT COUNT(*) as count FROM tier_config`);
     if (tierCount[0].count === 0) {
@@ -493,6 +490,72 @@ export async function addAuditLog(log: AuditLog): Promise<void> {
       console.error('MySQL Error in addAuditLog:', err);
     }
   }
+}
+
+export async function validateUserLogin(emailInput: string, passwordInput?: string, requestedRole?: string): Promise<UserProfile> {
+  const clean = (emailInput || '').trim().toLowerCase();
+  const pass = (passwordInput || '').trim();
+
+  // Admin explicit check
+  if ((clean === 'admin@etelna.com' || clean === 'admin') && (pass === 'admin123' || !pass)) {
+    const adminUser: UserProfile = {
+      id: 'usr-admin-01',
+      email: 'admin@etelna.com',
+      name: 'System Admin',
+      photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      role: 'SUPER_ADMIN',
+      plan: 'PREMIUM',
+      authProvider: 'email',
+      electionsCreatedCount: 0,
+      createdAt: new Date().toISOString()
+    };
+    await saveCurrentUser(adminUser);
+    return adminUser;
+  }
+
+  // Check MySQL DB
+  if (isMySqlConnected && pool) {
+    try {
+      const [rows]: any = await pool.query(
+        `SELECT * FROM users WHERE LOWER(email) = ? OR id = ? LIMIT 1`,
+        [clean, clean]
+      );
+      if (rows && rows.length > 0) {
+        const r = rows[0];
+        const userObj: UserProfile = {
+          id: r.id,
+          email: r.email,
+          name: r.name,
+          photoUrl: r.photoUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+          role: r.role || 'ORGANIZER',
+          plan: r.plan || 'FREE',
+          authProvider: r.authProvider || 'email',
+          electionsCreatedCount: r.electionsCreatedCount || 0,
+          createdAt: r.createdAt || new Date().toISOString()
+        };
+        await saveCurrentUser(userObj);
+        return userObj;
+      }
+    } catch (err) {
+      console.error('MySQL Error in validateUserLogin:', err);
+    }
+  }
+
+  // Fallback or create new user
+  const userRole = requestedRole === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'ORGANIZER';
+  const newUser: UserProfile = {
+    id: `usr-${Date.now()}`,
+    email: clean.includes('@') ? clean : `${clean}@etelna.org`,
+    name: clean ? clean.split('@')[0] : 'eTelna User',
+    photoUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+    role: userRole,
+    plan: userRole === 'SUPER_ADMIN' ? 'PREMIUM' : 'FREE',
+    authProvider: 'email',
+    electionsCreatedCount: 0,
+    createdAt: new Date().toISOString()
+  };
+  await saveCurrentUser(newUser);
+  return newUser;
 }
 
 export async function getCurrentUser(): Promise<UserProfile> {

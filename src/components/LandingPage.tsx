@@ -50,45 +50,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
       
-      {/* Landing Top Navigation Header */}
-      <header className="border-b border-slate-200/80 bg-white/90 backdrop-blur-md sticky top-0 z-40 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-          
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-700 to-amber-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 font-black">
-              <Vote className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <span className="text-xl font-black text-slate-900 tracking-tight">
-                e<span className="text-indigo-600">Telna</span>
-              </span>
-              <span className="text-[10px] font-bold text-amber-600 uppercase tracking-widest block -mt-1">
-                Voting Platform
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 text-xs font-bold">
-            <button
-              onClick={onSelectVoterPortal}
-              className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-indigo-700 border border-slate-200 transition-all flex items-center gap-2 cursor-pointer"
-            >
-              <KeyRound className="w-4 h-4 text-indigo-600" />
-              <span>Voter Ballot Portal</span>
-            </button>
-
-            <button
-              onClick={onSelectOrganizerPortal}
-              className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20 transition-all flex items-center gap-2 cursor-pointer"
-            >
-              <Building2 className="w-4 h-4" />
-              <span>Organizer & Admin Dashboard</span>
-            </button>
-          </div>
-
-        </div>
-      </header>
-
       {/* Hero Banner Section */}
       <section className="relative pt-16 pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto text-center space-y-8 overflow-hidden">
         

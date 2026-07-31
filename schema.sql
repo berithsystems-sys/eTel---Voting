@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `id` VARCHAR(255) NOT NULL,
   `email` VARCHAR(255) NOT NULL,
   `name` VARCHAR(255) NOT NULL,
+  `password` VARCHAR(255) DEFAULT 'admin123',
   `photoUrl` TEXT,
   `role` VARCHAR(50) DEFAULT 'ORGANIZER',
   `plan` VARCHAR(50) DEFAULT 'FREE',
@@ -19,6 +20,10 @@ CREATE TABLE IF NOT EXISTS `users` (
   `createdAt` VARCHAR(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Insert default Admin user if not exists
+INSERT IGNORE INTO `users` (`id`, `email`, `name`, `password`, `photoUrl`, `role`, `plan`, `authProvider`, `electionsCreatedCount`, `createdAt`)
+VALUES ('usr-admin-01', 'admin@etelna.com', 'System Admin', 'admin123', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80', 'SUPER_ADMIN', 'PREMIUM', 'email', 0, NOW());
 
 -- 2. Elections Table
 CREATE TABLE IF NOT EXISTS `elections` (

@@ -164,6 +164,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {/* TAB 1: EMAIL SIGN IN / SIGN UP */}
         {authTab === 'email' && (
           <form onSubmit={handleEmailSubmit} className="space-y-3 text-xs">
+            {/* Super Admin Credentials Box */}
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 font-extrabold text-amber-900">
+                  <ShieldCheck className="w-4 h-4 text-amber-600" />
+                  <span>Admin Credentials</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('admin@etelna.com');
+                    setPassword('admin123');
+                    setIsSignUp(false);
+                  }}
+                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-[10px] transition-all cursor-pointer shadow-xs"
+                >
+                  Auto-Fill Admin
+                </button>
+              </div>
+              <div className="text-[11px] text-amber-800 space-y-0.5 font-mono bg-white/70 p-2 rounded-xl border border-amber-100">
+                <div><span className="font-bold">Email/Username:</span> admin@etelna.com</div>
+                <div><span className="font-bold">Password:</span> admin123</div>
+              </div>
+            </div>
+
             {isSignUp && (
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Full Name</label>
@@ -182,13 +207,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             )}
 
             <div>
-              <label className="font-bold text-slate-700 block mb-1">Email Address</label>
+              <label className="font-bold text-slate-700 block mb-1">Email or Username</label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                 <input
-                  type="email"
+                  type="text"
                   required
-                  placeholder="organizer@example.com"
+                  placeholder="admin@etelna.com or organizer@example.com"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 font-medium"
@@ -216,7 +241,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               disabled={isLoading}
               className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer"
             >
-              {isLoading ? 'Authenticating...' : isSignUp ? 'Create Organizer Account' : 'Sign In with Password'}
+              {isLoading ? 'Authenticating...' : isSignUp ? 'Create Organizer Account' : 'Sign In'}
             </button>
 
             <div className="text-center pt-2 text-slate-500">

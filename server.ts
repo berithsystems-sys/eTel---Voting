@@ -13,6 +13,7 @@ import {
   addAuditLog,
   getCurrentUser,
   saveCurrentUser,
+  validateUserLogin,
   getTierConfig,
   saveTierConfig,
   getPaymentGateway,
@@ -102,19 +103,13 @@ app.get('/api/auth/me', async (req, res) => {
 });
 
 app.post('/api/auth/login', async (req, res) => {
-  const { email, role } = req.body;
-  const currentUser = await getCurrentUser();
-  const updatedUser: UserProfile = {
-    ...currentUser,
-    id: `usr-${Date.now()}`,
-    email: email || 'user@etelna.org',
-    name: email ? email.split('@')[0] : 'eTelna User',
-    role: role || 'ORGANIZER',
-    plan: role === 'SUPER_ADMIN' ? 'PREMIUM' : currentUser.plan,
-    authProvider: 'email'
-  };
-  await saveCurrentUser(updatedUser);
-  res.json({ success: true, user: updatedUser });
+  const { email, password, role } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: 'Email or Username is required.' });
+  }
+
+  const authenticatedUser = await validateUserLogin(email, password, role);
+  res.json({ success: true, user: authenticatedUser });
 });
 
 app.post('/api/auth/google-login', async (req, res) => {
