@@ -25,7 +25,15 @@ import {
 import { Voter, AuditLog, VoteSubmission, BallotReceiptData, UserProfile, PaymentTransaction } from './src/types';
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+
+process.on('uncaughtException', (err) => {
+  console.error('⚠️ Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('⚠️ Unhandled Rejection:', reason);
+});
 
 app.use(express.json());
 
@@ -517,13 +525,24 @@ async function startServer() {
   }
 
   // Start HTTP server immediately to avoid 503 gateway timeouts from hosting health checks
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 eTelna Server running on http://localhost:${PORT}`);
-    // Initialize MySQL database connection in background
-    initDb().catch(err => {
-      console.error('Background MySQL initialization error:', err);
+  const isNamedPipe = typeof PORT === 'string' && isNaN(Number(PORT));
+
+  if (isNamedPipe) {
+    app.listen(PORT, () => {
+      console.log(`🚀 eTelna Server running on socket ${PORT}`);
+      initDb().catch(err => {
+        console.error('Background MySQL initialization error:', err);
+      });
     });
-  });
+  } else {
+    const portNum = Number(PORT);
+    app.listen(portNum, '0.0.0.0', () => {
+      console.log(`🚀 eTelna Server running on port ${portNum}`);
+      initDb().catch(err => {
+        console.error('Background MySQL initialization error:', err);
+      });
+    });
+  }
 }
 
 startServer();
