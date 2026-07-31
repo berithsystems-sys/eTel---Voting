@@ -82,10 +82,46 @@ export async function processPaymentCheckout(paymentDetails: { paymentMethod: st
   return data;
 }
 
-export async function fetchElection(): Promise<Election> {
-  const res = await fetch(`${BASE}/election`);
+export async function fetchElections(): Promise<Election[]> {
+  const res = await fetch(`${BASE}/elections`);
+  if (!res.ok) throw new Error('Failed to fetch elections list');
+  return res.json();
+}
+
+export async function fetchElection(id?: string): Promise<Election> {
+  const url = id ? `${BASE}/election?id=${encodeURIComponent(id)}` : `${BASE}/election`;
+  const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch election');
   return res.json();
+}
+
+export async function createNewElection(data: { title: string; description?: string; startDate?: string; endDate?: string; timezone?: string }): Promise<{ success: boolean; election: Election; elections: Election[] }> {
+  const res = await fetch(`${BASE}/elections`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  const resData = await res.json();
+  if (!res.ok) throw new Error(resData.error || 'Failed to create new election');
+  return resData;
+}
+
+export async function deleteElectionApi(id: string): Promise<{ success: boolean; elections: Election[] }> {
+  const res = await fetch(`${BASE}/elections/${id}`, { method: 'DELETE' });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to delete election');
+  return data;
+}
+
+export async function sendTestEmailApi(data: { targetEmail: string; provider?: string; smtpHost?: string; smtpPort?: number; smtpUser?: string }): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`${BASE}/email/test`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  const resData = await res.json();
+  if (!res.ok) throw new Error(resData.error || 'Failed to send test email');
+  return resData;
 }
 
 export async function updateElection(electionData: Partial<Election>): Promise<{ success: boolean; election: Election }> {

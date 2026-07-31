@@ -26,7 +26,7 @@ export function getDbDebugInfo() {
 }
 
 // Fallback in-memory state if MySQL is not configured or unavailable
-let memoryElection: Election = JSON.parse(JSON.stringify(initialElection));
+let memoryElections: Election[] = [JSON.parse(JSON.stringify(initialElection))];
 let memoryVoters: Voter[] = [];
 let memoryAuditLogs: AuditLog[] = [];
 let memoryUsers: (UserProfile & { password?: string })[] = [
@@ -208,21 +208,22 @@ export async function initDb(): Promise<boolean> {
 
     // SEED INITIAL DATA ONLY IF TABLES ARE COMPLETELY EMPTY
     const [electionsCount]: any = await pool.query(`SELECT COUNT(*) as count FROM elections`);
-    if (electionsCount[0].count === 0) {
+    if (electionsCount[0].count === 0 && memoryElections.length > 0) {
+      const initEl = memoryElections[0];
       await pool.query(
         `INSERT INTO elections (id, title, description, status, startDate, endDate, totalVoters, timezone, questions, settings)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          memoryElection.id,
-          memoryElection.title,
-          memoryElection.description,
-          memoryElection.status,
-          memoryElection.startDate,
-          memoryElection.endDate,
-          memoryElection.totalVoters,
-          memoryElection.timezone,
-          JSON.stringify(memoryElection.questions),
-          JSON.stringify(memoryElection.settings)
+          initEl.id,
+          initEl.title,
+          initEl.description,
+          initEl.status,
+          initEl.startDate,
+          initEl.endDate,
+          initEl.totalVoters,
+          initEl.timezone,
+          JSON.stringify(initEl.questions),
+          JSON.stringify(initEl.settings)
         ]
       );
       console.log('🌱 Seeded default clean election into MySQL.');
@@ -333,13 +334,12 @@ export function isDbConnected(): boolean {
 
 // --- DB ACCESSORS & MUTATORS ---
 
-export async function getElection(): Promise<Election> {
+export async function getElections(): Promise<Election[]> {
   if (isMySqlConnected && pool) {
     try {
-      const [rows]: any = await pool.query(`SELECT * FROM elections ORDER BY updated_at DESC LIMIT 1`);
+      const [rows]: any = await pool.query(`SELECT * FROM elections ORDER BY updated_at DESC`);
       if (rows && rows.length > 0) {
-        const row = rows[0];
-        return {
+        return rows.map((row: any) => ({
           id: row.id,
           title: row.title,
           description: row.description,
@@ -350,17 +350,32 @@ export async function getElection(): Promise<Election> {
           timezone: row.timezone,
           questions: typeof row.questions === 'string' ? JSON.parse(row.questions) : row.questions,
           settings: typeof row.settings === 'string' ? JSON.parse(row.settings) : row.settings
-        };
+        }));
       }
     } catch (err) {
-      console.error('MySQL Error in getElection:', err);
+      console.error('MySQL Error in getElections:', err);
     }
   }
-  return memoryElection;
+  return memoryElections;
+}
+
+export async function getElection(id?: string): Promise<Election> {
+  const electionsList = await getElections();
+  if (id) {
+    const found = electionsList.find(e => e.id === id);
+    if (found) return found;
+  }
+  return electionsList[0] || initialElection;
 }
 
 export async function saveElection(election: Election): Promise<void> {
-  memoryElection = election;
+  const existingIdx = memoryElections.findIndex(e => e.id === election.id);
+  if (existingIdx >= 0) {
+    memoryElections[existingIdx] = election;
+  } else {
+    memoryElections.unshift(election);
+  }
+
   if (isMySqlConnected && pool) {
     try {
       await pool.query(
@@ -391,6 +406,17 @@ export async function saveElection(election: Election): Promise<void> {
       );
     } catch (err) {
       console.error('MySQL Error in saveElection:', err);
+    }
+  }
+}
+
+export async function deleteElection(id: string): Promise<void> {
+  memoryElections = memoryElections.filter(e => e.id !== id);
+  if (isMySqlConnected && pool) {
+    try {
+      await pool.query(`DELETE FROM elections WHERE id = ?`, [id]);
+    } catch (err) {
+      console.error('MySQL Error in deleteElection:', err);
     }
   }
 }

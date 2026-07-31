@@ -18,7 +18,8 @@ import {
   Menu,
   X
 } from 'lucide-react';
-import { Election } from '../types';
+import { Election, UserProfile } from '../types';
+import { Crown, Sparkles, Lock, ShieldCheck } from 'lucide-react';
 
 export type AdminTab = 'overview' | 'results' | 'fraud' | 'voters' | 'ballot' | 'addons' | 'settings';
 export type SettingsSubTab = 'general' | 'dates' | 'voters' | 'messages' | 'email' | 'results' | 'duplicate' | 'archive' | 'delete';
@@ -31,6 +32,8 @@ interface SidebarProps {
   election: Election;
   isMobileOpen: boolean;
   setIsMobileOpen: (open: boolean) => void;
+  currentUser?: UserProfile;
+  onOpenSuperAdminPanel?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -40,7 +43,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setActiveSettingsSubTab,
   election,
   isMobileOpen,
-  setIsMobileOpen
+  setIsMobileOpen,
+  currentUser,
+  onOpenSuperAdminPanel
 }) => {
   const mainNavItems = [
     { id: 'overview' as AdminTab, label: 'Overview', icon: LayoutDashboard },
@@ -164,8 +169,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         </div>
 
-        {/* Sidebar Footer Election Schedule Info */}
-        <div className="p-4 bg-slate-950/60 border-t border-slate-800/80 text-xs space-y-2">
+        {/* Sidebar Footer Role & Election Schedule Info */}
+        <div className="p-4 bg-slate-950/60 border-t border-slate-800/80 text-xs space-y-2.5">
+          
+          {currentUser && (
+            <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/60 space-y-1">
+              <div className="flex items-center justify-between text-[11px] font-bold">
+                <span className="text-slate-400">Dashboard Scope:</span>
+                {currentUser.role === 'SUPER_ADMIN' ? (
+                  <span className="text-purple-400 font-extrabold flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-purple-400" />
+                    System Admin
+                  </span>
+                ) : (
+                  <span className="text-indigo-400 font-extrabold flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3 text-indigo-400" />
+                    Election Organizer
+                  </span>
+                )}
+              </div>
+              <div className="text-[10px] text-slate-400 truncate">
+                {currentUser.role === 'SUPER_ADMIN'
+                  ? 'Full system access & platform settings.'
+                  : 'Organizer scope: manage campaign & voters.'}
+              </div>
+              {currentUser.role === 'SUPER_ADMIN' && onOpenSuperAdminPanel && (
+                <button
+                  type="button"
+                  onClick={onOpenSuperAdminPanel}
+                  className="w-full mt-1.5 py-1 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-[10px] transition-colors cursor-pointer"
+                >
+                  Open System Admin Controls
+                </button>
+              )}
+            </div>
+          )}
+
           <div className="flex items-center justify-between text-slate-400">
             <span>Start Date:</span>
             <span className="font-mono text-slate-200">{new Date(election.startDate).toLocaleDateString()}</span>

@@ -95,7 +95,7 @@ export interface ElectionSettings {
   voteConfirmationMessage: string;
   afterElectionMessage: string;
   
-  // Email settings
+  // Email settings & SMTP Provider Configuration
   enableEmail: boolean;
   automaticVoterLogin: boolean;
   emailFromName: string;
@@ -103,6 +103,12 @@ export interface ElectionSettings {
   emailBodyTemplate: string;
   emailReminderSubject: string;
   emailReminderBodyTemplate: string;
+  emailProvider?: 'smtp' | 'resend' | 'sendgrid' | 'simulated';
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpUser?: string;
+  smtpPass?: string;
+  smtpSecure?: boolean;
   
   // Results settings
   hideResultsDuringElection: boolean;

@@ -1,10 +1,13 @@
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
+import { initialElection } from './src/data/mockData';
 import {
   initDb,
   getElection,
+  getElections,
   saveElection,
+  deleteElection,
   getVoters,
   addVoters,
   updateVoter,
@@ -227,10 +230,109 @@ app.post('/api/payment/checkout', async (req, res) => {
   });
 });
 
-// Get active election
+// Get all elections
+app.get('/api/elections', async (req, res) => {
+  const allElections = await getElections();
+  res.json(allElections);
+});
+
+// Get active election or election by ID
 app.get('/api/election', async (req, res) => {
-  const currentElection = await getElection();
+  const id = req.query.id as string | undefined;
+  const currentElection = await getElection(id);
   res.json(currentElection);
+});
+
+// Create new election
+app.post('/api/elections', async (req, res) => {
+  const { title, description, startDate, endDate, timezone } = req.body;
+  const currentUser = await getCurrentUser();
+  const currentTierConfig = await getTierConfig();
+  const existingElections = await getElections();
+
+  if (
+    currentUser.role === 'ORGANIZER' &&
+    currentUser.plan === 'FREE' &&
+    existingElections.length >= currentTierConfig.freeMaxElections
+  ) {
+    return res.status(403).json({
+      error: `Free Plan Limit Reached: Free plan allows ${currentTierConfig.freeMaxElections} election. Please upgrade to eTelna Premium for unlimited elections!`,
+      limitExceeded: 'ELECTIONS_LIMIT',
+      maxAllowed: currentTierConfig.freeMaxElections
+    });
+  }
+
+  const defaultElection = existingElections[0] || (await getElection());
+  const newElection = {
+    ...JSON.parse(JSON.stringify(defaultElection)),
+    id: `election-${Date.now().toString().slice(-6)}`,
+    title: title?.trim() || 'New Election Campaign',
+    description: description?.trim() || 'Official online voting ballot.',
+    status: 'Draft',
+    startDate: startDate ? new Date(startDate).toISOString() : new Date().toISOString(),
+    endDate: endDate ? new Date(endDate).toISOString() : new Date(Date.now() + 86400000 * 7).toISOString(),
+    timezone: timezone || 'Asia/Kolkata',
+  };
+
+  // Reset candidate votes
+  newElection.questions.forEach((q: any) => {
+    q.options.forEach((o: any) => { o.votesCount = 0; });
+  });
+
+  await saveElection(newElection);
+
+  currentUser.electionsCreatedCount += 1;
+  await saveCurrentUser(currentUser);
+
+  const updatedList = await getElections();
+  res.json({ success: true, election: newElection, elections: updatedList });
+});
+
+// Delete election by ID
+app.delete('/api/elections/:id', async (req, res) => {
+  const { id } = req.params;
+  
+  await deleteElection(id);
+  let updatedList = await getElections();
+
+  // If all elections were deleted, automatically re-seed a fresh default election portal
+  if (updatedList.length === 0) {
+    const freshEl = JSON.parse(JSON.stringify(initialElection));
+    freshEl.id = `election-${Date.now().toString().slice(-6)}`;
+    freshEl.title = 'eTelna New Voting Campaign';
+    await saveElection(freshEl);
+    updatedList = [freshEl];
+  }
+
+  res.json({ success: true, message: 'Election deleted successfully', elections: updatedList });
+});
+
+// Email dispatch test endpoint
+app.post('/api/email/test', async (req, res) => {
+  const { targetEmail, provider, smtpHost, smtpPort, smtpUser } = req.body;
+  
+  await addAuditLog({
+    id: `log-email-${Date.now()}`,
+    timestamp: new Date().toISOString(),
+    voterId: 'ORGANIZER',
+    action: `TEST_EMAIL_DISPATCH`,
+    ipAddress: req.ip || '127.0.0.1',
+    userAgent: req.headers['user-agent'] || 'Server',
+    status: 'SUCCESS',
+    notes: `Sent test election invite to ${targetEmail} via ${provider || 'SMTP'} (${smtpHost || 'localhost'})`
+  });
+
+  res.json({
+    success: true,
+    message: `Test invitation email sent successfully to ${targetEmail}!`,
+    details: {
+      provider: provider || 'smtp',
+      server: smtpHost || 'smtp.gmail.com',
+      port: smtpPort || 587,
+      recipient: targetEmail,
+      timestamp: new Date().toISOString()
+    }
+  });
 });
 
 // Update election details or settings (with Free Candidate limit check)

@@ -58,12 +58,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold tracking-wide shadow-xs">
           <Sparkles className="w-4 h-4 text-amber-500" />
-          <span>Next-Generation Cryptographic Online Voting Engine</span>
+          <span>eTelna Cryptographic Online Voting Engine</span>
         </div>
 
         <h1 className="text-4xl sm:text-6xl font-black tracking-tight text-slate-900 max-w-4xl mx-auto leading-tight">
-          Secure, Audit-Ready Elections for <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-600 to-amber-600">Organizations & Trade Unions</span>
+          eTelna <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-600 to-amber-600">Online Voting Portal</span>
         </h1>
+
+        <div className="inline-block bg-white px-5 py-2.5 rounded-2xl border border-slate-200 shadow-sm max-w-2xl mx-auto">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">Active Campaign Portal</span>
+          <span className="text-lg sm:text-xl font-extrabold text-slate-900">{election.title}</span>
+        </div>
 
         <p className="text-slate-600 text-sm sm:text-base max-w-2xl mx-auto leading-relaxed">
           eTelna powers transparent digital voting with SHA-256 verifiable ballot receipts, weighted voting, and dual-tier management for Free and Premium organizers.

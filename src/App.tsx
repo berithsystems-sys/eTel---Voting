@@ -15,11 +15,15 @@ import { AuthModal } from './components/AuthModal';
 import { PaymentModal } from './components/PaymentModal';
 import { AdminTierSettingsModal } from './components/AdminTierSettingsModal';
 import { AdminLoginGuard } from './components/AdminLoginGuard';
+import { ElectionManagerHeader } from './components/ElectionManagerHeader';
 
 import { ExternalLink, Vote } from 'lucide-react';
 import { Election, Voter, AuditLog, UserProfile, AdminTierConfig, PaymentGatewayConfig } from './types';
 import {
   fetchElection,
+  fetchElections,
+  createNewElection,
+  deleteElectionApi,
   updateElection,
   duplicateElection,
   fetchVoters,
@@ -82,21 +86,34 @@ export default function App() {
   });
 
   // App Data State
+  const [elections, setElections] = useState<Election[]>([]);
   const [election, setElection] = useState<Election | null>(null);
   const [voters, setVoters] = useState<Voter[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Load backend data on mount
-  const loadData = async () => {
+  const loadData = async (targetId?: string) => {
     try {
-      const [elData, vtrData, logsData, authData] = await Promise.all([
-        fetchElection(),
+      const [allEls, vtrData, logsData, authData] = await Promise.all([
+        fetchElections(),
         fetchVoters(),
         fetchAuditLogs(),
         fetchAuthMe()
       ]);
-      setElection(elData);
+      setElections(allEls);
+
+      const queryParams = new URLSearchParams(window.location.search);
+      const urlElectionId = targetId || queryParams.get('electionId');
+      
+      let activeEl = allEls.find(e => e.id === urlElectionId) || allEls[0];
+      if (!activeEl && urlElectionId) {
+        try {
+          activeEl = await fetchElection(urlElectionId);
+        } catch (e) {}
+      }
+      setElection(activeEl || allEls[0] || null);
+
       setVoters(vtrData);
       setAuditLogs(logsData);
       if (authData.user) setCurrentUser(authData.user);
@@ -110,24 +127,67 @@ export default function App() {
   };
 
   useEffect(() => {
-    loadData();
+    const params = new URLSearchParams(window.location.search);
+    const targetId = params.get('electionId') || undefined;
+    loadData(targetId);
 
     // Check if view URL parameter is present
-    const params = new URLSearchParams(window.location.search);
     const viewParam = params.get('view');
     if (viewParam === 'voter' || viewParam === 'admin' || viewParam === 'landing') {
       setActiveView(viewParam);
-    } else if (params.get('vote') === 'true') {
+    } else if (params.get('vote') === 'true' || params.get('electionId')) {
       setActiveView('voter');
     } else {
       setActiveView('landing');
     }
   }, []);
 
+  const handleSelectElection = async (id: string) => {
+    setIsLoading(true);
+    try {
+      const el = await fetchElection(id);
+      setElection(el);
+    } catch (e) {
+      const found = elections.find(x => x.id === id);
+      if (found) setElection(found);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreateElection = async (data: { title: string; description?: string; startDate?: string; endDate?: string; timezone?: string }) => {
+    try {
+      const res = await createNewElection(data);
+      setElections(res.elections);
+      setElection(res.election);
+      alert(`Election "${res.election.title}" created successfully!`);
+    } catch (err: any) {
+      if (err.message && err.message.includes('Free Plan Limit Reached')) {
+        setIsPaymentModalOpen(true);
+      } else {
+        alert(err.message || 'Failed to create election');
+      }
+    }
+  };
+
+  const handleDeleteElection = async (id: string) => {
+    try {
+      const res = await deleteElectionApi(id);
+      setElections(res.elections);
+      if (res.elections.length > 0) {
+        setElection(res.elections[0]);
+      }
+      alert('Election deleted successfully.');
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete election');
+    }
+  };
+
   const handleUpdateElection = async (updatedFields: Partial<Election>) => {
     try {
       const res = await updateElection(updatedFields);
       setElection(res.election);
+      setElections(prev => prev.map(e => e.id === res.election.id ? res.election : e));
     } catch (err: any) {
       if (err.message && err.message.includes('Free Plan Limit Reached')) {
         setIsPaymentModalOpen(true);
@@ -281,12 +341,25 @@ export default function App() {
             election={election}
             isMobileOpen={isMobileSidebarOpen}
             setIsMobileOpen={setIsMobileSidebarOpen}
+            currentUser={currentUser}
+            onOpenSuperAdminPanel={() => setIsAdminSettingsModalOpen(true)}
           />
 
           {/* Right Column Content Area: Main Content + Bottom Footer */}
           <div className="flex-1 min-w-0 flex flex-col min-h-0 w-full">
             <main className="flex-1 min-w-0 w-full p-4 sm:p-6 lg:p-8 overflow-y-auto block">
               
+              {/* Multi-Election Manager Control Bar */}
+              <ElectionManagerHeader
+                elections={elections}
+                activeElection={election}
+                onSelectElection={handleSelectElection}
+                onCreateElection={handleCreateElection}
+                onUpdateElection={handleUpdateElection}
+                onDeleteElection={handleDeleteElection}
+                onOpenVoterPortal={() => changeView('voter')}
+              />
+
               {/* Mobile Sidebar Toggle Button */}
               <div className="lg:hidden mb-4 flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200">
                 <span className="text-xs font-bold text-slate-700 capitalize">
@@ -356,6 +429,8 @@ export default function App() {
               {/* TAB 6: ADD-ONS */}
               {activeAdminTab === 'addons' && (
                 <AddonsTab
+                  currentUser={currentUser}
+                  onOpenAuthModal={() => setIsAuthModalOpen(true)}
                   onOpenCpanelModal={() => setIsCpanelGuideOpen(true)}
                 />
               )}
@@ -368,6 +443,8 @@ export default function App() {
                   setActiveSubTab={setActiveSettingsSubTab}
                   onUpdateElection={handleUpdateElection}
                   onDuplicateElection={handleDuplicateElection}
+                  currentUser={currentUser}
+                  onOpenAuthModal={() => setIsAuthModalOpen(true)}
                 />
               )}
 

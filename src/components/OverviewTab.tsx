@@ -39,7 +39,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const turnoutPercent = totalVoters > 0 ? Math.round((votedCount / totalVoters) * 100) : 0;
   const flaggedLogs = auditLogs.filter(l => l.status === 'FLAGGED' || l.status === 'BLOCKED').length;
 
-  const publicVoteUrl = `${window.location.origin}/?vote=true`;
+  const publicVoteUrl = `${window.location.origin}/?electionId=${election.id}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(publicVoteUrl);
@@ -57,7 +57,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 mb-3">
               <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-              Vision Lamka Election Portal
+              eTelna Official Election Portal
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
               {election.title}

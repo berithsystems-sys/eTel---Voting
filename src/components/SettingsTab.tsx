@@ -13,9 +13,15 @@ import {
   CheckCircle2,
   AlertCircle,
   HelpCircle,
-  Info
+  Info,
+  Send,
+  Loader2,
+  Server,
+  Lock,
+  ShieldCheck
 } from 'lucide-react';
-import { Election, ElectionSettings } from '../types';
+import { Election, ElectionSettings, UserProfile } from '../types';
+import { sendTestEmailApi } from '../services/api';
 import { SettingsSubTab } from './Sidebar';
 
 interface SettingsTabProps {
@@ -24,6 +30,8 @@ interface SettingsTabProps {
   setActiveSubTab: (sub: SettingsSubTab) => void;
   onUpdateElection: (data: Partial<Election>) => Promise<void>;
   onDuplicateElection: () => Promise<void>;
+  currentUser?: UserProfile;
+  onOpenAuthModal?: () => void;
 }
 
 export const SettingsTab: React.FC<SettingsTabProps> = ({
@@ -31,7 +39,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   activeSubTab,
   setActiveSubTab,
   onUpdateElection,
-  onDuplicateElection
+  onDuplicateElection,
+  currentUser,
+  onOpenAuthModal
 }) => {
   const [savedSuccess, setSavedSuccess] = useState(false);
 
@@ -42,6 +52,31 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [endDate, setEndDate] = useState(election.endDate.slice(0, 16));
 
   const [settings, setSettings] = useState<ElectionSettings>({ ...election.settings });
+
+  // Test Email state
+  const [testEmailRecipient, setTestEmailRecipient] = useState('admin@organization.org');
+  const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
+  const [testEmailStatus, setTestEmailStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const handleSendTestEmail = async () => {
+    if (!testEmailRecipient.trim()) return;
+    setIsSendingTestEmail(true);
+    setTestEmailStatus(null);
+    try {
+      const res = await sendTestEmailApi({
+        targetEmail: testEmailRecipient.trim(),
+        provider: settings.emailProvider || 'smtp',
+        smtpHost: settings.smtpHost || 'smtp.gmail.com',
+        smtpPort: settings.smtpPort || 587,
+        smtpUser: settings.smtpUser || 'elections@etelna.org'
+      });
+      setTestEmailStatus({ type: 'success', message: res.message });
+    } catch (err: any) {
+      setTestEmailStatus({ type: 'error', message: err.message || 'Failed to send test email' });
+    } finally {
+      setIsSendingTestEmail(false);
+    }
+  };
 
   const handleToggle = (key: keyof ElectionSettings) => {
     setSettings(prev => ({ ...prev, [key]: !prev[key] }));
@@ -367,6 +402,152 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                   onChange={() => handleToggle('automaticVoterLogin')}
                   className="w-5 h-5 accent-indigo-600 rounded cursor-pointer shrink-0"
                 />
+              </div>
+            </div>
+
+            {/* SMTP & Provider Configuration Card */}
+            <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-4 relative overflow-hidden">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                <div>
+                  <div className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                    <Server className="w-4 h-4 text-indigo-600" />
+                    Outgoing Email Service & SMTP Configuration
+                  </div>
+                  <p className="text-slate-500 text-[11px] mt-0.5">
+                    Configure server-side SMTP mail gateways or API mail providers to dispatch voter credentials.
+                  </p>
+                </div>
+
+                {currentUser?.isLoggedIn ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[11px] font-bold shrink-0 self-start sm:self-center">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    System Admin Authenticated
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-full text-[11px] font-bold shrink-0 self-start sm:self-center">
+                    <Lock className="w-3.5 h-3.5 text-amber-600" />
+                    Restricted to System Admin
+                  </span>
+                )}
+              </div>
+
+              {!currentUser?.isLoggedIn && (
+                <div className="p-3.5 bg-amber-50/80 border border-amber-200/90 rounded-xl text-xs text-amber-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-amber-700 shrink-0" />
+                    <span>
+                      <strong className="font-bold">Admin Configuration Locked:</strong> Log in as an Election Organizer / System Admin to edit SMTP credentials or send test mail.
+                    </span>
+                  </div>
+                  {onOpenAuthModal && (
+                    <button
+                      type="button"
+                      onClick={onOpenAuthModal}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg shadow-xs shrink-0 cursor-pointer"
+                    >
+                      Log in as Admin
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 ${!currentUser?.isLoggedIn ? 'opacity-60 pointer-events-none' : ''}`}>
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">Email Service Provider</label>
+                  <select
+                    value={settings.emailProvider || 'smtp'}
+                    disabled={!currentUser?.isLoggedIn}
+                    onChange={e => setSettings(prev => ({ ...prev, emailProvider: e.target.value as any }))}
+                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none font-medium text-xs"
+                  >
+                    <option value="smtp">Custom SMTP Server (Gmail / Outlook / Yahoo / Custom)</option>
+                    <option value="resend">Resend API</option>
+                    <option value="sendgrid">SendGrid Mail API</option>
+                    <option value="simulated">Simulated Mail Service (Built-in Testing)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">SMTP Server Host</label>
+                  <input
+                    type="text"
+                    disabled={!currentUser?.isLoggedIn}
+                    placeholder="smtp.gmail.com"
+                    value={settings.smtpHost || 'smtp.gmail.com'}
+                    onChange={e => setSettings(prev => ({ ...prev, smtpHost: e.target.value }))}
+                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">SMTP Port</label>
+                  <input
+                    type="number"
+                    disabled={!currentUser?.isLoggedIn}
+                    placeholder="587"
+                    value={settings.smtpPort || 587}
+                    onChange={e => setSettings(prev => ({ ...prev, smtpPort: Number(e.target.value) }))}
+                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">SMTP Username / Sender Address</label>
+                  <input
+                    type="text"
+                    disabled={!currentUser?.isLoggedIn}
+                    placeholder="elections@organization.org"
+                    value={settings.smtpUser || 'elections@etelna.org'}
+                    onChange={e => setSettings(prev => ({ ...prev, smtpUser: e.target.value }))}
+                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Test Email Dispatcher */}
+              <div className={`pt-3 border-t border-slate-200/80 space-y-2 ${!currentUser?.isLoggedIn ? 'opacity-60 pointer-events-none' : ''}`}>
+                <label className="font-bold text-slate-900 block text-xs">Send Test Invitation Email</label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="email"
+                    disabled={!currentUser?.isLoggedIn}
+                    placeholder="Enter email to test dispatch..."
+                    value={testEmailRecipient}
+                    onChange={e => setTestEmailRecipient(e.target.value)}
+                    className="flex-1 px-3.5 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSendTestEmail}
+                    disabled={isSendingTestEmail || !currentUser?.isLoggedIn}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-colors cursor-pointer shrink-0 disabled:opacity-50 text-xs"
+                  >
+                    {isSendingTestEmail ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Dispatching...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        Send Test Email
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {testEmailStatus && (
+                  <div className={`p-3 rounded-xl text-xs font-medium flex items-center gap-2 ${
+                    testEmailStatus.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
+                  }`}>
+                    {testEmailStatus.type === 'success' ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    )}
+                    <span>{testEmailStatus.message}</span>
+                  </div>
+                )}
               </div>
             </div>
 
