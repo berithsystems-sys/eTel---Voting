@@ -1,5 +1,5 @@
 import React from 'react';
-import { Vote, Shield, Smartphone, CheckCircle2, Clock, Crown, LogIn, Sparkles, Home } from 'lucide-react';
+import { Vote, Shield, Smartphone, CheckCircle2, Clock, Crown, LogIn, Sparkles, Home, RefreshCw } from 'lucide-react';
 import { Election, UserProfile } from '../types';
 
 interface NavbarProps {
@@ -24,6 +24,17 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAdminSettingsModal,
   onLogout
 }) => {
+  const handleClearCacheAndReload = () => {
+    if ('caches' in window) {
+      caches.keys().then(names => {
+        names.forEach(name => caches.delete(name));
+      });
+    }
+    localStorage.clear();
+    sessionStorage.clear();
+    window.location.reload();
+  };
+
   const getStatusBadge = () => {
     switch (election.status) {
       case 'Active':
@@ -148,6 +159,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="hidden sm:inline">Admin</span> Controls
             </button>
           )}
+
+          {/* Clear Cache & Hard Refresh Button */}
+          <button
+            type="button"
+            onClick={handleClearCacheAndReload}
+            className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-all cursor-pointer text-xs flex items-center gap-1 font-bold"
+            title="Clear Cache & Hard Reload Latest Code"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span className="hidden xl:inline text-[11px]">Clear Cache</span>
+          </button>
 
           {/* User Auth Profile / Login Button */}
           {currentUser.isLoggedIn ? (
