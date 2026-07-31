@@ -113,9 +113,11 @@ export interface ElectionSettings {
 export interface Election {
   id: string;
   title: string;
+  description?: string;
   status: 'Draft' | 'Active' | 'Completed';
   startDate: string;
   endDate: string;
+  totalVoters?: number;
   timezone: string;
   questions: BallotQuestion[];
   settings: ElectionSettings;

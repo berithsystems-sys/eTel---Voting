@@ -29,6 +29,20 @@ export function getDbDebugInfo() {
 let memoryElection: Election = JSON.parse(JSON.stringify(initialElection));
 let memoryVoters: Voter[] = [];
 let memoryAuditLogs: AuditLog[] = [];
+let memoryUsers: (UserProfile & { password?: string })[] = [
+  {
+    id: 'usr-admin-01',
+    email: 'admin@etelna.com',
+    name: 'System Admin',
+    password: 'admin123',
+    photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    role: 'SUPER_ADMIN',
+    plan: 'PREMIUM',
+    authProvider: 'email',
+    electionsCreatedCount: 0,
+    createdAt: new Date().toISOString()
+  }
+];
 let memoryCurrentUser: UserProfile = {
   id: 'usr-admin-01',
   email: 'admin@etelna.com',
@@ -492,12 +506,78 @@ export async function addAuditLog(log: AuditLog): Promise<void> {
   }
 }
 
-export async function validateUserLogin(emailInput: string, passwordInput?: string, requestedRole?: string): Promise<UserProfile> {
+export async function validateUserLogin(
+  emailInput: string,
+  passwordInput?: string,
+  isSignUp?: boolean,
+  nameInput?: string
+): Promise<UserProfile> {
   const clean = (emailInput || '').trim().toLowerCase();
   const pass = (passwordInput || '').trim();
 
-  // Admin explicit check
-  if ((clean === 'admin@etelna.com' || clean === 'admin') && (pass === 'admin123' || !pass)) {
+  // 1. SIGN UP REGISTRATION MODE
+  if (isSignUp) {
+    if (clean === 'admin@etelna.com' || clean === 'admin') {
+      throw new Error('This email address is reserved for System Administrator. Please Sign In.');
+    }
+
+    if (isMySqlConnected && pool) {
+      const [existing]: any = await pool.query(
+        `SELECT id FROM users WHERE LOWER(email) = ? OR id = ? LIMIT 1`,
+        [clean, clean]
+      );
+      if (existing && existing.length > 0) {
+        throw new Error('An account with this email/username already exists. Please Sign In.');
+      }
+    } else {
+      const existingInMemory = memoryUsers.find(
+        u => u.email.toLowerCase() === clean || u.id.toLowerCase() === clean
+      );
+      if (existingInMemory) {
+        throw new Error('An account with this email/username already exists. Please Sign In.');
+      }
+    }
+
+    const newUserId = `usr-${Date.now()}`;
+    const newUserName = nameInput?.trim() || clean.split('@')[0] || 'Organizer';
+    const newUserEmail = clean.includes('@') ? clean : `${clean}@etelna.org`;
+
+    const newUser: UserProfile = {
+      id: newUserId,
+      email: newUserEmail,
+      name: newUserName,
+      photoUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+      role: 'ORGANIZER',
+      plan: 'FREE',
+      authProvider: 'email',
+      electionsCreatedCount: 0,
+      createdAt: new Date().toISOString(),
+      isLoggedIn: true
+    };
+
+    if (isMySqlConnected && pool) {
+      try {
+        await pool.query(
+          `INSERT INTO users (id, email, name, password, photoUrl, role, plan, authProvider, electionsCreatedCount, createdAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [newUserId, newUserEmail, newUserName, pass || 'admin123', newUser.photoUrl, 'ORGANIZER', 'FREE', 'email', 0, newUser.createdAt]
+        );
+      } catch (e) {
+        console.error('Failed to insert user into MySQL:', e);
+      }
+    }
+
+    memoryUsers.push({ ...newUser, password: pass || 'admin123' });
+    await saveCurrentUser(newUser);
+    return newUser;
+  }
+
+  // 2. SIGN IN / LOGIN MODE
+  // System Admin Check
+  if (clean === 'admin@etelna.com' || clean === 'admin') {
+    if (pass && pass !== 'admin123') {
+      throw new Error('Incorrect password for System Admin.');
+    }
     const adminUser: UserProfile = {
       id: 'usr-admin-01',
       email: 'admin@etelna.com',
@@ -523,6 +603,9 @@ export async function validateUserLogin(emailInput: string, passwordInput?: stri
       );
       if (rows && rows.length > 0) {
         const r = rows[0];
+        if (r.password && pass && r.password !== pass) {
+          throw new Error('Incorrect password. Please verify your credentials.');
+        }
         const userObj: UserProfile = {
           id: r.id,
           email: r.email,
@@ -538,27 +621,28 @@ export async function validateUserLogin(emailInput: string, passwordInput?: stri
         await saveCurrentUser(userObj);
         return userObj;
       }
-    } catch (err) {
-      console.error('MySQL Error in validateUserLogin:', err);
+    } catch (err: any) {
+      if (err.message && (err.message.includes('Incorrect password') || err.message.includes('reserved'))) {
+        throw err;
+      }
     }
   }
 
-  // Fallback or create new user
-  const userRole = requestedRole === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'ORGANIZER';
-  const newUser: UserProfile = {
-    id: `usr-${Date.now()}`,
-    email: clean.includes('@') ? clean : `${clean}@etelna.org`,
-    name: clean ? clean.split('@')[0] : 'eTelna User',
-    photoUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-    role: userRole,
-    plan: userRole === 'SUPER_ADMIN' ? 'PREMIUM' : 'FREE',
-    authProvider: 'email',
-    electionsCreatedCount: 0,
-    createdAt: new Date().toISOString(),
-    isLoggedIn: true
-  };
-  await saveCurrentUser(newUser);
-  return newUser;
+  // Check in-memory users list
+  const foundMem = memoryUsers.find(
+    u => u.email.toLowerCase() === clean || u.id.toLowerCase() === clean
+  );
+  if (foundMem) {
+    if (foundMem.password && pass && foundMem.password !== pass) {
+      throw new Error('Incorrect password. Please verify your credentials.');
+    }
+    const userObj = { ...foundMem, isLoggedIn: true };
+    await saveCurrentUser(userObj);
+    return userObj;
+  }
+
+  // No matching user found
+  throw new Error('Account not found with this email/username. Please check your credentials or click Sign Up to register.');
 }
 
 export async function getCurrentUser(): Promise<UserProfile> {

@@ -109,18 +109,20 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="hidden sm:inline">Voter</span> Ballot
             </button>
 
-            <button
-              id="nav-btn-admin"
-              onClick={() => setActiveView('admin')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeView === 'admin'
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Shield className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Admin</span> Dashboard
-            </button>
+            {currentUser.isLoggedIn && (
+              <button
+                id="nav-btn-admin"
+                onClick={() => setActiveView('admin')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  activeView === 'admin'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Shield className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Organizer</span> Dashboard
+              </button>
+            )}
           </div>
 
           {/* Upgrade Button (if Free plan and logged in) */}

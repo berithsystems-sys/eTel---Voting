@@ -8,14 +8,15 @@ export async function fetchAuthMe(): Promise<{ user: UserProfile; tierConfig: Ad
   return res.json();
 }
 
-export async function loginEmail(email: string, password?: string, role: 'ORGANIZER' | 'SUPER_ADMIN' = 'ORGANIZER'): Promise<{ success: boolean; user: UserProfile }> {
+export async function loginEmail(email: string, password?: string, isSignUp?: boolean, name?: string): Promise<{ success: boolean; user: UserProfile }> {
   const res = await fetch(`${BASE}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, role })
+    body: JSON.stringify({ email, password, isSignUp, name })
   });
-  if (!res.ok) throw new Error('Login failed');
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Authentication failed');
+  return data;
 }
 
 export async function loginGoogle(googleEmail: string, googleName: string, googlePhoto?: string): Promise<{ success: boolean; user: UserProfile }> {

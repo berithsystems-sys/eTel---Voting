@@ -240,29 +240,6 @@ Status: Cryptographically Verified & Sealed
               </p>
             </div>
 
-            {/* Quick Demo Test Credential Picker */}
-            <div className="p-4 bg-indigo-50/70 border border-indigo-100 rounded-2xl space-y-2 text-xs">
-              <div className="font-bold text-indigo-950 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-indigo-600" />
-                Quick Test Login (Click to fill credentials):
-              </div>
-              <div className="flex flex-wrap gap-2 pt-1">
-                {sampleVoters.slice(0, 4).map(v => (
-                  <button
-                    key={v.id}
-                    onClick={() => handleSelectSampleVoter(v)}
-                    className={`px-3 py-1.5 rounded-xl border text-[11px] font-semibold transition-all ${
-                      voterId === v.voterId
-                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                        : 'bg-white text-slate-700 border-slate-200 hover:border-indigo-300'
-                    }`}
-                  >
-                    {v.name} ({v.voterId}) {v.hasVoted && '• [Voted]'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {loginError && (
               <div className="p-3 bg-rose-50 text-rose-700 rounded-xl border border-rose-200 text-xs font-semibold flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />

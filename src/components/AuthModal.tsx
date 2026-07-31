@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Mail, Lock, User } from 'lucide-react';
 import { UserProfile } from '../types';
-import { loginEmail, loginGoogle } from '../services/api';
+import { loginEmail, loginGoogle, switchRole } from '../services/api';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -38,7 +38,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setErrorMsg(null);
 
     try {
-      const res = await loginEmail(email.trim(), password, 'ORGANIZER');
+      const res = await loginEmail(email.trim(), password, isSignUp, name);
       onAuthSuccess(res.user);
       onClose();
     } catch (err: any) {

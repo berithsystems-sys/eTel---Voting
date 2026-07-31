@@ -26,7 +26,7 @@ export const AdminLoginGuard: React.FC<AdminLoginGuardProps> = ({
     setErrorMsg(null);
 
     try {
-      const res = await loginEmail(email.trim(), password, 'ORGANIZER');
+      const res = await loginEmail(email.trim(), password, false);
       onLoginSuccess(res.user);
     } catch (err: any) {
       setErrorMsg(err.message || 'Authentication failed');
@@ -99,6 +99,18 @@ export const AdminLoginGuard: React.FC<AdminLoginGuardProps> = ({
             <span>{isLoading ? 'Authenticating...' : 'Sign In'}</span>
           </button>
         </form>
+
+        {onOpenAuthModal && (
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={onOpenAuthModal}
+              className="text-xs font-bold text-indigo-400 hover:text-indigo-300 underline cursor-pointer"
+            >
+              Or use Google / Email Sign Up Modal
+            </button>
+          </div>
+        )}
 
         {/* Back to Public Portal Button */}
         <div className="pt-2 text-center border-t border-slate-700/60">

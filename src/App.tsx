@@ -240,7 +240,13 @@ export default function App() {
           currentUser={currentUser}
           tierConfig={tierConfig}
           onSelectVoterPortal={() => changeView('voter')}
-          onSelectOrganizerPortal={() => changeView('admin')}
+          onSelectOrganizerPortal={() => {
+            if (!currentUser.isLoggedIn) {
+              setIsAuthModalOpen(true);
+            } else {
+              changeView('admin');
+            }
+          }}
           onOpenAuthModal={() => setIsAuthModalOpen(true)}
           onOpenPaymentModal={() => setIsPaymentModalOpen(true)}
         />

@@ -103,13 +103,17 @@ app.get('/api/auth/me', async (req, res) => {
 });
 
 app.post('/api/auth/login', async (req, res) => {
-  const { email, password, role } = req.body;
+  const { email, password, isSignUp, name } = req.body;
   if (!email) {
     return res.status(400).json({ error: 'Email or Username is required.' });
   }
 
-  const authenticatedUser = await validateUserLogin(email, password, role);
-  res.json({ success: true, user: authenticatedUser });
+  try {
+    const authenticatedUser = await validateUserLogin(email, password, isSignUp, name);
+    res.json({ success: true, user: authenticatedUser });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || 'Authentication failed' });
+  }
 });
 
 app.post('/api/auth/google-login', async (req, res) => {
