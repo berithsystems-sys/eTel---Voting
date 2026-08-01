@@ -18,6 +18,11 @@ export interface UserProfile {
   electionsCreatedCount: number;
   createdAt: string;
   isLoggedIn?: boolean;
+  subscriptionExpiry?: string;
+  subscriptionStatus?: 'ACTIVE' | 'EXPIRED' | 'PENDING' | 'LIFETIME';
+  maxElectionsQuota?: number;
+  maxVotersQuota?: number;
+  status?: 'ACTIVE' | 'SUSPENDED';
 }
 
 export interface AdminTierConfig {

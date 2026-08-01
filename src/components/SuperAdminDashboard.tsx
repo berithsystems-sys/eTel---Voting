@@ -24,7 +24,16 @@ import {
   Trash2,
   Play,
   Pause,
-  Filter
+  Filter,
+  Calendar,
+  RefreshCw,
+  Edit3,
+  UserPlus,
+  X,
+  Mail,
+  User,
+  Clock,
+  Check
 } from 'lucide-react';
 import { Election, UserProfile, AuditLog, PaymentTransaction, AdminTierConfig, PaymentGatewayConfig, GoogleOAuthConfig } from '../types';
 import { fetchAdminTierConfig, updateAdminTierConfig } from '../services/api';
@@ -50,10 +59,27 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
   onDeleteElection,
   onSwitchToOrganizerMode
 }) => {
-  const [activeTab, setActiveTab] = useState<'elections' | 'users' | 'system' | 'audit'>('elections');
+  const [activeTab, setActiveTab] = useState<'elections' | 'users' | 'system'>('elections');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'DRAFT' | 'CLOSED'>('ALL');
   
+  // User Management State
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [userPlanFilter, setUserPlanFilter] = useState<'ALL' | 'PREMIUM' | 'FREE'>('ALL');
+  const [userRoleFilter, setUserRoleFilter] = useState<'ALL' | 'ORGANIZER' | 'SUPER_ADMIN'>('ALL');
+
+  // Modals for User Management
+  const [editingSubUser, setEditingSubUser] = useState<UserProfile | null>(null);
+  const [editingDetailsUser, setEditingDetailsUser] = useState<UserProfile | null>(null);
+  const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
+  const [resetPassNotice, setResetPassNotice] = useState<{ userId: string; tempPass: string } | null>(null);
+
+  // Form states for Add User
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserRole, setNewUserRole] = useState<'ORGANIZER' | 'SUPER_ADMIN'>('ORGANIZER');
+  const [newUserPlan, setNewUserPlan] = useState<'FREE' | 'PREMIUM'>('PREMIUM');
+
   const [adminConfig, setAdminConfig] = useState<{
     tierConfig?: AdminTierConfig;
     paymentGateway?: PaymentGatewayConfig;
@@ -68,19 +94,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
       .catch(err => console.error(err));
   }, []);
 
-  // Filtered elections across whole system
-  const filteredElections = elections.filter(e => {
-    const matchesSearch = e.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          e.id.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'ALL' || e.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
-  const activeCount = elections.filter(e => e.status === 'ACTIVE').length;
-  const draftCount = elections.filter(e => e.status === 'DRAFT').length;
-  const totalVotersCount = elections.reduce((acc, curr) => acc + (curr.totalVoters || 0), 0);
-
-  // System Demo Users List
+  // System Demo Users List with full subscription tracking
   const [userList, setUserList] = useState<UserProfile[]>([
     {
       id: 'usr-admin-01',
@@ -90,8 +104,13 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
       plan: 'PREMIUM',
       authProvider: 'email',
       electionsCreatedCount: 5,
-      createdAt: new Date().toISOString(),
-      isLoggedIn: true
+      createdAt: '2025-01-15T08:00:00.000Z',
+      isLoggedIn: true,
+      subscriptionStatus: 'LIFETIME',
+      subscriptionExpiry: '2099-12-31',
+      maxElectionsQuota: 999,
+      maxVotersQuota: 50000,
+      status: 'ACTIVE'
     },
     {
       id: 'usr-org-101',
@@ -101,7 +120,12 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
       plan: 'PREMIUM',
       authProvider: 'google',
       electionsCreatedCount: 3,
-      createdAt: new Date(Date.now() - 86400000 * 14).toISOString()
+      createdAt: '2025-06-10T10:30:00.000Z',
+      subscriptionStatus: 'ACTIVE',
+      subscriptionExpiry: '2026-12-31',
+      maxElectionsQuota: 20,
+      maxVotersQuota: 5000,
+      status: 'ACTIVE'
     },
     {
       id: 'usr-org-102',
@@ -111,17 +135,94 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
       plan: 'FREE',
       authProvider: 'email',
       electionsCreatedCount: 1,
-      createdAt: new Date(Date.now() - 86400000 * 3).toISOString()
+      createdAt: '2025-07-20T14:15:00.000Z',
+      subscriptionStatus: 'EXPIRED',
+      subscriptionExpiry: '2025-12-01',
+      maxElectionsQuota: 1,
+      maxVotersQuota: 100,
+      status: 'ACTIVE'
     }
   ]);
 
-  const toggleUserPlan = (userId: string) => {
+  // Filtered elections across whole system
+  const filteredElections = elections.filter(e => {
+    const matchesSearch = e.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          e.id.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'ALL' || e.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  // Filtered users across whole system
+  const filteredUsers = userList.filter(u => {
+    const matchesSearch = u.name.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+                          u.email.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+                          u.id.toLowerCase().includes(userSearchTerm.toLowerCase());
+    const matchesPlan = userPlanFilter === 'ALL' || u.plan === userPlanFilter;
+    const matchesRole = userRoleFilter === 'ALL' || u.role === userRoleFilter;
+    return matchesSearch && matchesPlan && matchesRole;
+  });
+
+  const activeCount = elections.filter(e => e.status === 'ACTIVE').length;
+  const draftCount = elections.filter(e => e.status === 'DRAFT').length;
+  const totalVotersCount = elections.reduce((acc, curr) => acc + (curr.totalVoters || 0), 0);
+
+  // User Actions
+  const handleRenewSubscription = (userId: string, newExpiry: string, newPlan: 'FREE' | 'PREMIUM', newStatus: 'ACTIVE' | 'LIFETIME' | 'EXPIRED') => {
     setUserList(prev => prev.map(u => {
       if (u.id === userId) {
-        return { ...u, plan: u.plan === 'FREE' ? 'PREMIUM' : 'FREE' };
+        return {
+          ...u,
+          plan: newPlan,
+          subscriptionExpiry: newExpiry,
+          subscriptionStatus: newStatus,
+          status: 'ACTIVE'
+        };
       }
       return u;
     }));
+    setEditingSubUser(null);
+  };
+
+  const handleUpdateUserDetails = (updated: UserProfile) => {
+    setUserList(prev => prev.map(u => u.id === updated.id ? updated : u));
+    setEditingDetailsUser(null);
+  };
+
+  const handleResetPassword = (userId: string) => {
+    const temp = 'eTelnaPass' + Math.floor(1000 + Math.random() * 9000);
+    setResetPassNotice({ userId, tempPass: temp });
+  };
+
+  const handleDeleteUser = (userId: string) => {
+    if (confirm('Are you sure you want to delete this user account from the system?')) {
+      setUserList(prev => prev.filter(u => u.id !== userId));
+    }
+  };
+
+  const handleCreateUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newUserEmail || !newUserName) return;
+
+    const newUser: UserProfile = {
+      id: `usr-${Date.now()}`,
+      email: newUserEmail.trim(),
+      name: newUserName.trim(),
+      role: newUserRole,
+      plan: newUserPlan,
+      authProvider: 'email',
+      electionsCreatedCount: 0,
+      createdAt: new Date().toISOString(),
+      subscriptionStatus: newUserPlan === 'PREMIUM' ? 'ACTIVE' : 'EXPIRED',
+      subscriptionExpiry: newUserPlan === 'PREMIUM' ? '2027-12-31' : '2025-12-31',
+      maxElectionsQuota: newUserPlan === 'PREMIUM' ? 25 : 1,
+      maxVotersQuota: newUserPlan === 'PREMIUM' ? 10000 : 100,
+      status: 'ACTIVE'
+    };
+
+    setUserList(prev => [newUser, ...prev]);
+    setIsAddUserModalOpen(false);
+    setNewUserEmail('');
+    setNewUserName('');
   };
 
   return (
@@ -148,7 +249,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
               Platform Master Dashboard
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-              Global system overview for <span className="text-purple-300 font-bold">eTelna Digital Voting Engine</span>. Manage all election instances, Google API OAuth configurations, user roles, and payment revenue.
+              Global system overview for <span className="text-purple-300 font-bold">eTelna Digital Voting Engine</span>. Manage all election instances, Google API OAuth configurations, user roles, user subscriptions, and payment revenue.
             </p>
           </div>
 
@@ -200,7 +301,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
         {/* Metric 2 */}
         <div className="p-5 bg-white border border-slate-200/80 rounded-3xl shadow-sm hover:shadow-md transition-all space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Organizers & Users</span>
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Organizers & Subscriptions</span>
             <div className="w-9 h-9 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center">
               <Users className="w-5 h-5" />
             </div>
@@ -208,12 +309,12 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           <div className="flex items-baseline gap-2">
             <span className="text-3xl font-black text-slate-900">{userList.length}</span>
             <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
-              2 Premium
+              {userList.filter(u => u.plan === 'PREMIUM').length} Premium Active
             </span>
           </div>
           <div className="text-[11px] text-slate-500 pt-1 border-t border-slate-100 flex items-center justify-between">
-            <span>Free Tier: 1</span>
-            <span>SuperAdmin: 1</span>
+            <span>Free Tier: {userList.filter(u => u.plan === 'FREE').length}</span>
+            <span>Admins: {userList.filter(u => u.role === 'SUPER_ADMIN').length}</span>
           </div>
         </div>
 
@@ -253,12 +354,12 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
               ₹{(adminConfig.transactions || []).reduce((sum, tx) => sum + tx.amount, 4998)}
             </span>
             <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-              Razorpay Test
+              Razorpay Active
             </span>
           </div>
           <div className="text-[11px] text-slate-500 pt-1 border-t border-slate-100 flex items-center justify-between">
             <span>Price: ₹{adminConfig.tierConfig?.premiumPrice || 2499}</span>
-            <span>Txns: {(adminConfig.transactions || []).length || 2}</span>
+            <span>Renewals: Active</span>
           </div>
         </div>
 
@@ -288,7 +389,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
             }`}
           >
             <Users className="w-4 h-4" />
-            Organizers & User Accounts ({userList.length})
+            User Management & Subscriptions ({userList.length})
           </button>
 
           <button
@@ -304,13 +405,23 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           </button>
         </div>
 
-        <button
-          onClick={onOpenCreateModal}
-          className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-2xl flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          Create Election Instance
-        </button>
+        {activeTab === 'elections' ? (
+          <button
+            onClick={onOpenCreateModal}
+            className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-2xl flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            Create Election Instance
+          </button>
+        ) : activeTab === 'users' ? (
+          <button
+            onClick={() => setIsAddUserModalOpen(true)}
+            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-2xl flex items-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-xs"
+          >
+            <UserPlus className="w-4 h-4" />
+            Add User Account
+          </button>
+        ) : null}
       </div>
 
       {/* TAB 1: ALL SYSTEM ELECTIONS */}
@@ -436,59 +547,204 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
         </div>
       )}
 
-      {/* TAB 2: ORGANIZERS & USER ACCOUNTS */}
+      {/* TAB 2: FULL USER MANAGEMENT & SUBSCRIPTION PAGE */}
       {activeTab === 'users' && (
-        <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden space-y-4">
-          <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between font-bold text-xs text-slate-700">
-            <div>Platform Registered Accounts & Organizers</div>
-            <div className="text-[11px] text-slate-500">SuperAdmin Plan Upgrade Management</div>
+        <div className="space-y-4">
+          
+          {/* Search & Filter Controls */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 border border-slate-200 rounded-3xl shadow-xs">
+            <div className="relative flex-1 max-w-md">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+              <input
+                type="text"
+                placeholder="Search user name, email or ID..."
+                value={userSearchTerm}
+                onChange={e => setUserSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-600">
+              <Filter className="w-3.5 h-3.5 text-slate-400" />
+              <span>Plan:</span>
+              {(['ALL', 'PREMIUM', 'FREE'] as const).map(p => (
+                <button
+                  key={p}
+                  onClick={() => setUserPlanFilter(p)}
+                  className={`px-3 py-1 rounded-xl transition-all cursor-pointer ${
+                    userPlanFilter === p
+                      ? 'bg-purple-100 text-purple-900 border border-purple-200 font-black'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+
+              <span className="ml-2">Role:</span>
+              {(['ALL', 'ORGANIZER', 'SUPER_ADMIN'] as const).map(r => (
+                <button
+                  key={r}
+                  onClick={() => setUserRoleFilter(r)}
+                  className={`px-3 py-1 rounded-xl transition-all cursor-pointer ${
+                    userRoleFilter === r
+                      ? 'bg-indigo-100 text-indigo-900 border border-indigo-200 font-black'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                  }`}
+                >
+                  {r === 'SUPER_ADMIN' ? 'ADMIN' : r}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="p-4 divide-y divide-slate-100 text-xs">
-            {userList.map(u => (
-              <div key={u.id} className="py-3.5 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <img
-                    src={u.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
-                    alt={u.name}
-                    className="w-10 h-10 rounded-full object-cover border border-slate-200"
-                  />
-                  <div>
-                    <div className="font-extrabold text-slate-900 flex items-center gap-2">
-                      {u.name}
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
-                        u.role === 'SUPER_ADMIN'
-                          ? 'bg-purple-100 text-purple-900 border border-purple-200'
-                          : 'bg-slate-100 text-slate-700'
-                      }`}>
-                        {u.role}
-                      </span>
-                    </div>
-                    <div className="text-slate-500 text-[11px] font-mono">{u.email} • Provider: {u.authProvider}</div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <span className={`px-3 py-1 rounded-full font-bold text-[10px] ${
-                    u.plan === 'PREMIUM'
-                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                      : 'bg-amber-100 text-amber-800 border border-amber-200'
-                  }`}>
-                    {u.plan} PLAN
-                  </span>
-
-                  {u.role !== 'SUPER_ADMIN' && (
-                    <button
-                      onClick={() => toggleUserPlan(u.id)}
-                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 rounded-xl transition-all cursor-pointer"
-                    >
-                      Toggle {u.plan === 'FREE' ? 'Upgrade to PREMIUM' : 'Downgrade to FREE'}
-                    </button>
-                  )}
-                </div>
+          {/* User Reset Password Notification Banner */}
+          {resetPassNotice && (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-amber-900 text-xs font-bold flex items-center justify-between gap-2 animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <Key className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  Temporary Password Generated for User (<span className="font-mono text-purple-800">{resetPassNotice.userId}</span>):{' '}
+                  <span className="font-mono bg-amber-200/80 px-2 py-0.5 rounded-md text-amber-950 font-black select-all">{resetPassNotice.tempPass}</span>
+                </span>
               </div>
-            ))}
+              <button
+                onClick={() => setResetPassNotice(null)}
+                className="text-amber-700 hover:text-amber-950 underline cursor-pointer"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
+          {/* User Accounts Data Table */}
+          <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
+            <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between font-bold text-xs text-slate-700">
+              <div>Registered Accounts & Organizers ({filteredUsers.length})</div>
+              <div className="text-[11px] text-slate-500">Super Admin Subscription & Access Control</div>
+            </div>
+
+            <div className="divide-y divide-slate-100 text-xs">
+              {filteredUsers.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 font-medium">
+                  No user accounts match your search filters
+                </div>
+              ) : (
+                filteredUsers.map(u => {
+                  const isExpired = u.subscriptionExpiry && new Date(u.subscriptionExpiry) < new Date();
+                  return (
+                    <div key={u.id} className="p-4 sm:p-5 hover:bg-slate-50/80 transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                      
+                      {/* User Info Column */}
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
+                        <img
+                          src={u.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
+                          alt={u.name}
+                          className="w-11 h-11 rounded-full object-cover border border-slate-200 shrink-0 mt-0.5"
+                        />
+                        <div className="space-y-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-black text-slate-900 text-sm tracking-tight truncate">
+                              {u.name}
+                            </span>
+                            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                              u.role === 'SUPER_ADMIN'
+                                ? 'bg-purple-100 text-purple-900 border border-purple-200'
+                                : 'bg-slate-100 text-slate-700 border border-slate-200'
+                            }`}>
+                              {u.role}
+                            </span>
+                            <span className="text-[10px] font-mono text-slate-400">
+                              ID: {u.id}
+                            </span>
+                          </div>
+
+                          <div className="text-slate-500 text-xs font-mono flex items-center gap-2 flex-wrap">
+                            <span>{u.email}</span>
+                            <span>•</span>
+                            <span className="capitalize">Provider: {u.authProvider}</span>
+                            <span>•</span>
+                            <span>Created: {new Date(u.createdAt).toLocaleDateString()}</span>
+                          </div>
+
+                          <div className="flex items-center gap-3 text-[11px] pt-1 text-slate-600">
+                            <span>Elections: <strong className="text-slate-900">{u.electionsCreatedCount}</strong></span>
+                            <span>Quota: <strong className="text-slate-900">{u.maxElectionsQuota || 1} Elections</strong></span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Subscription Info & Actions Column */}
+                      <div className="flex flex-wrap items-center justify-between lg:justify-end gap-3 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
+                        
+                        {/* Subscription Status Badge */}
+                        <div className="text-left lg:text-right">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`px-3 py-1 rounded-full font-black text-[10px] uppercase flex items-center gap-1 ${
+                              u.plan === 'PREMIUM'
+                                ? isExpired
+                                  ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                  : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                : 'bg-amber-100 text-amber-800 border border-amber-200'
+                            }`}>
+                              <Crown className="w-3 h-3" />
+                              {u.plan} PLAN {isExpired ? '(EXPIRED)' : ''}
+                            </span>
+                          </div>
+
+                          <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-slate-400" />
+                            <span>
+                              Expiry: {u.subscriptionExpiry ? u.subscriptionExpiry : 'No Active Expiry'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Control Actions */}
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setEditingSubUser(u)}
+                            className="px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                            title="Manage Subscription & Expiry"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                            Renew / Edit Plan
+                          </button>
+
+                          <button
+                            onClick={() => setEditingDetailsUser(u)}
+                            className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer"
+                            title="Edit User Details & Role"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            onClick={() => handleResetPassword(u.id)}
+                            className="p-2 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-xl transition-all cursor-pointer"
+                            title="Reset User Password"
+                          >
+                            <Key className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteUser(u.id)}
+                            className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl transition-all cursor-pointer"
+                            title="Delete User Account"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                      </div>
+
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
+
         </div>
       )}
 
@@ -504,7 +760,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
               </h3>
               <button
                 onClick={onOpenSettingsModal}
-                className="text-xs font-bold text-purple-600 hover:underline"
+                className="text-xs font-bold text-purple-600 hover:underline cursor-pointer"
               >
                 Edit Keys
               </button>
@@ -561,6 +817,285 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
             </div>
           </div>
 
+        </div>
+      )}
+
+      {/* MODAL 1: MANAGE SUBSCRIPTION & RENEWAL */}
+      {editingSubUser && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Crown className="w-5 h-5 text-purple-600" />
+                <h3 className="font-black text-slate-900 text-base">Manage User Subscription</h3>
+              </div>
+              <button onClick={() => setEditingSubUser(null)} className="p-1 rounded-xl hover:bg-slate-100 text-slate-400 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs space-y-1">
+              <div className="font-extrabold text-slate-900">{editingSubUser.name}</div>
+              <div className="text-slate-500 font-mono">{editingSubUser.email}</div>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Subscription Plan</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingSubUser({ ...editingSubUser, plan: 'FREE' })}
+                    className={`py-2 px-3 rounded-xl font-bold border transition-all cursor-pointer ${
+                      editingSubUser.plan === 'FREE'
+                        ? 'bg-amber-50 text-amber-900 border-amber-300 ring-2 ring-amber-500/20'
+                        : 'bg-slate-50 border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    FREE TIER
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingSubUser({ ...editingSubUser, plan: 'PREMIUM' })}
+                    className={`py-2 px-3 rounded-xl font-bold border transition-all cursor-pointer ${
+                      editingSubUser.plan === 'PREMIUM'
+                        ? 'bg-purple-50 text-purple-900 border-purple-300 ring-2 ring-purple-500/20'
+                        : 'bg-slate-50 border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    PREMIUM PLAN
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Expiration / Renewal Date</label>
+                <input
+                  type="date"
+                  value={editingSubUser.subscriptionExpiry || ''}
+                  onChange={e => setEditingSubUser({ ...editingSubUser, subscriptionExpiry: e.target.value })}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                />
+              </div>
+
+              {/* Quick Extension Presets */}
+              <div className="space-y-1.5">
+                <span className="font-bold text-slate-500 text-[10px] uppercase">Quick Renewal Extension</span>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date();
+                      d.setMonth(d.getMonth() + 1);
+                      setEditingSubUser({
+                        ...editingSubUser,
+                        subscriptionExpiry: d.toISOString().split('T')[0],
+                        plan: 'PREMIUM'
+                      });
+                    }}
+                    className="py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-[11px] font-bold cursor-pointer transition-all"
+                  >
+                    + 1 Month
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date();
+                      d.setFullYear(d.getFullYear() + 1);
+                      setEditingSubUser({
+                        ...editingSubUser,
+                        subscriptionExpiry: d.toISOString().split('T')[0],
+                        plan: 'PREMIUM'
+                      });
+                    }}
+                    className="py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-900 rounded-lg text-[11px] font-bold cursor-pointer transition-all"
+                  >
+                    + 1 Year
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingSubUser({
+                        ...editingSubUser,
+                        subscriptionExpiry: '2099-12-31',
+                        plan: 'PREMIUM'
+                      });
+                    }}
+                    className="py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-900 rounded-lg text-[11px] font-bold cursor-pointer transition-all"
+                  >
+                    Lifetime
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  onClick={() => setEditingSubUser(null)}
+                  className="px-4 py-2 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleRenewSubscription(
+                    editingSubUser.id,
+                    editingSubUser.subscriptionExpiry || '2026-12-31',
+                    editingSubUser.plan,
+                    editingSubUser.subscriptionExpiry === '2099-12-31' ? 'LIFETIME' : 'ACTIVE'
+                  )}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl cursor-pointer shadow-md"
+                >
+                  Save & Renew Subscription
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: EDIT USER DETAILS */}
+      {editingDetailsUser && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-black text-slate-900 text-base">Edit User Account</h3>
+              <button onClick={() => setEditingDetailsUser(null)} className="p-1 rounded-xl hover:bg-slate-100 text-slate-400 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Full Name</label>
+                <input
+                  type="text"
+                  value={editingDetailsUser.name}
+                  onChange={e => setEditingDetailsUser({ ...editingDetailsUser, name: e.target.value })}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Email Address</label>
+                <input
+                  type="email"
+                  value={editingDetailsUser.email}
+                  onChange={e => setEditingDetailsUser({ ...editingDetailsUser, email: e.target.value })}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">System Role</label>
+                <select
+                  value={editingDetailsUser.role}
+                  onChange={e => setEditingDetailsUser({ ...editingDetailsUser, role: e.target.value as any })}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium"
+                >
+                  <option value="ORGANIZER">ORGANIZER</option>
+                  <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+                </select>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  onClick={() => setEditingDetailsUser(null)}
+                  className="px-4 py-2 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleUpdateUserDetails(editingDetailsUser)}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl cursor-pointer shadow-md"
+                >
+                  Update User Details
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: ADD NEW USER ACCOUNT */}
+      {isAddUserModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-black text-slate-900 text-base">Add New Platform User</h3>
+              <button onClick={() => setIsAddUserModalOpen(false)} className="p-1 rounded-xl hover:bg-slate-100 text-slate-400 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateUser} className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Full Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Organizer Name"
+                  value={newUserName}
+                  onChange={e => setNewUserName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Email Address</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="user@organization.com"
+                  value={newUserEmail}
+                  onChange={e => setNewUserEmail(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Role</label>
+                  <select
+                    value={newUserRole}
+                    onChange={e => setNewUserRole(e.target.value as any)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium"
+                  >
+                    <option value="ORGANIZER">ORGANIZER</option>
+                    <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Plan</label>
+                  <select
+                    value={newUserPlan}
+                    onChange={e => setNewUserPlan(e.target.value as any)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium"
+                  >
+                    <option value="PREMIUM">PREMIUM</option>
+                    <option value="FREE">FREE TIER</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddUserModalOpen(false)}
+                  className="px-4 py-2 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl cursor-pointer shadow-md"
+                >
+                  Create Account
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
