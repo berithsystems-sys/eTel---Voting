@@ -1,6 +1,6 @@
 import mysql from 'mysql2/promise';
 import { initialElection, initialVoters, initialAuditLogs } from '../data/mockData';
-import { Election, Voter, AuditLog, UserProfile, AdminTierConfig, PaymentGatewayConfig, PaymentTransaction } from '../types';
+import { Election, Voter, AuditLog, UserProfile, AdminTierConfig, PaymentGatewayConfig, PaymentTransaction, GoogleOAuthConfig } from '../types';
 
 // MySQL Pool setup from environment variables
 const dbHost = process.env.DB_HOST || process.env.MYSQL_HOST || '';
@@ -69,6 +69,13 @@ let memoryPaymentGateway: PaymentGatewayConfig = {
   mode: 'test',
   isEnabled: true,
   currency: 'INR'
+};
+let memoryGoogleOAuthConfig: GoogleOAuthConfig = {
+  clientId: '94f5335a-b171-4a1d-b88c-cb1ca96c9177.apps.googleusercontent.com',
+  clientSecret: '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2',
+  redirectUri: 'https://ais-pre-issf6sxkar2q64repghr23-257579155645.asia-southeast1.run.app/auth/google/callback',
+  isEnabled: true,
+  enableOneTap: true
 };
 let memoryTransactions: PaymentTransaction[] = [];
 
@@ -203,6 +210,17 @@ export async function initDb(): Promise<boolean> {
         status VARCHAR(50),
         transactionRef VARCHAR(255),
         timestamp VARCHAR(255)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS google_oauth_config (
+        id INT PRIMARY KEY,
+        clientId TEXT,
+        clientSecret TEXT,
+        redirectUri TEXT,
+        isEnabled TINYINT(1) DEFAULT 1,
+        enableOneTap TINYINT(1) DEFAULT 1
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
@@ -843,6 +861,48 @@ export async function addPaymentTransaction(tx: PaymentTransaction): Promise<voi
       );
     } catch (err) {
       console.error('MySQL Error in addPaymentTransaction:', err);
+    }
+  }
+}
+
+export async function getGoogleOAuthConfig(): Promise<GoogleOAuthConfig> {
+  if (isMySqlConnected && pool) {
+    try {
+      const [rows]: any = await pool.query(`SELECT * FROM google_oauth_config WHERE id = 1 LIMIT 1`);
+      if (rows && rows.length > 0) {
+        const r = rows[0];
+        return {
+          clientId: r.clientId || memoryGoogleOAuthConfig.clientId,
+          clientSecret: r.clientSecret || memoryGoogleOAuthConfig.clientSecret,
+          redirectUri: r.redirectUri || memoryGoogleOAuthConfig.redirectUri,
+          isEnabled: Boolean(r.isEnabled),
+          enableOneTap: Boolean(r.enableOneTap)
+        };
+      }
+    } catch (err) {
+      console.error('MySQL Error in getGoogleOAuthConfig:', err);
+    }
+  }
+  return memoryGoogleOAuthConfig;
+}
+
+export async function saveGoogleOAuthConfig(config: GoogleOAuthConfig): Promise<void> {
+  memoryGoogleOAuthConfig = config;
+  if (isMySqlConnected && pool) {
+    try {
+      await pool.query(
+        `INSERT INTO google_oauth_config (id, clientId, clientSecret, redirectUri, isEnabled, enableOneTap)
+         VALUES (1, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           clientId = VALUES(clientId),
+           clientSecret = VALUES(clientSecret),
+           redirectUri = VALUES(redirectUri),
+           isEnabled = VALUES(isEnabled),
+           enableOneTap = VALUES(enableOneTap)`,
+        [config.clientId, config.clientSecret, config.redirectUri, config.isEnabled ? 1 : 0, config.enableOneTap ? 1 : 0]
+      );
+    } catch (err) {
+      console.error('MySQL Error in saveGoogleOAuthConfig:', err);
     }
   }
 }

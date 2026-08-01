@@ -1,4 +1,4 @@
-import { Election, Voter, AuditLog, VoteSubmission, BallotReceiptData, UserProfile, AdminTierConfig, PaymentGatewayConfig, PaymentTransaction } from '../types';
+import { Election, Voter, AuditLog, VoteSubmission, BallotReceiptData, UserProfile, AdminTierConfig, PaymentGatewayConfig, PaymentTransaction, GoogleOAuthConfig } from '../types';
 
 const BASE = '/api';
 
@@ -45,7 +45,7 @@ export async function switchRole(role?: 'ORGANIZER' | 'SUPER_ADMIN', plan?: 'FRE
   return res.json();
 }
 
-export async function fetchAdminTierConfig(): Promise<{ tierConfig: AdminTierConfig; paymentGateway: PaymentGatewayConfig; transactions: PaymentTransaction[] }> {
+export async function fetchAdminTierConfig(): Promise<{ tierConfig: AdminTierConfig; paymentGateway: PaymentGatewayConfig; googleOAuthConfig: GoogleOAuthConfig; transactions: PaymentTransaction[] }> {
   const res = await fetch(`${BASE}/admin/tier-config`);
   if (!res.ok) throw new Error('Failed to fetch admin config');
   return res.json();
@@ -68,6 +68,16 @@ export async function updateAdminPaymentGateway(settingsPartial: Partial<Payment
     body: JSON.stringify(settingsPartial)
   });
   if (!res.ok) throw new Error('Failed to update payment gateway');
+  return res.json();
+}
+
+export async function updateAdminGoogleOAuth(googlePartial: Partial<GoogleOAuthConfig>): Promise<{ success: boolean; googleOAuthConfig: GoogleOAuthConfig }> {
+  const res = await fetch(`${BASE}/admin/google-oauth`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(googlePartial)
+  });
+  if (!res.ok) throw new Error('Failed to update Google OAuth config');
   return res.json();
 }
 

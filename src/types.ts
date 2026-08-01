@@ -38,6 +38,14 @@ export interface PaymentGatewayConfig {
   currency: string;
 }
 
+export interface GoogleOAuthConfig {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+  isEnabled: boolean;
+  enableOneTap: boolean;
+}
+
 export interface PaymentTransaction {
   id: string;
   userId: string;

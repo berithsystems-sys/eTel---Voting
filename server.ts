@@ -23,6 +23,8 @@ import {
   savePaymentGateway,
   getPaymentTransactions,
   addPaymentTransaction,
+  getGoogleOAuthConfig,
+  saveGoogleOAuthConfig,
   isDbConnected,
   getDbDebugInfo
 } from './src/db/mysql';
@@ -175,11 +177,13 @@ app.post('/api/auth/switch-role', async (req, res) => {
 app.get('/api/admin/tier-config', async (req, res) => {
   const tierConfig = await getTierConfig();
   const paymentGateway = await getPaymentGateway();
+  const googleOAuthConfig = await getGoogleOAuthConfig();
   const transactions = await getPaymentTransactions();
 
   res.json({
     tierConfig,
     paymentGateway,
+    googleOAuthConfig,
     transactions,
     databaseConnected: isDbConnected()
   });
@@ -205,6 +209,17 @@ app.put('/api/admin/payment-gateway', async (req, res) => {
   };
   await savePaymentGateway(updatedGateway);
   res.json({ success: true, paymentGateway: updatedGateway });
+});
+
+app.put('/api/admin/google-oauth', async (req, res) => {
+  const newGoogleSettings = req.body;
+  const currentGoogleConfig = await getGoogleOAuthConfig();
+  const updatedGoogleConfig = {
+    ...currentGoogleConfig,
+    ...newGoogleSettings
+  };
+  await saveGoogleOAuthConfig(updatedGoogleConfig);
+  res.json({ success: true, googleOAuthConfig: updatedGoogleConfig });
 });
 
 // PAYMENT CHECKOUT (Upgrade from Free to Premium)

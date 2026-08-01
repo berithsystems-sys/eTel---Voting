@@ -16,6 +16,7 @@ import { PaymentModal } from './components/PaymentModal';
 import { AdminTierSettingsModal } from './components/AdminTierSettingsModal';
 import { AdminLoginGuard } from './components/AdminLoginGuard';
 import { ElectionManagerHeader } from './components/ElectionManagerHeader';
+import { SuperAdminDashboard } from './components/SuperAdminDashboard';
 
 import { ExternalLink, Vote } from 'lucide-react';
 import { Election, Voter, AuditLog, UserProfile, AdminTierConfig, PaymentGatewayConfig } from './types';
@@ -54,6 +55,7 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isAdminSettingsModalOpen, setIsAdminSettingsModalOpen] = useState(false);
+  const [isSuperAdminMasterMode, setIsSuperAdminMasterMode] = useState(true);
 
   // Auth & Tier State
   const [currentUser, setCurrentUser] = useState<UserProfile>({
@@ -332,33 +334,68 @@ export default function App() {
         /* VIEW SWITCH: ADMIN DASHBOARD (AUTHENTICATED ONLY) */
         <div className="flex-1 flex w-full max-w-7xl mx-auto min-h-0">
           
-          {/* Admin Sidebar Navigation */}
-          <Sidebar
-            activeTab={activeAdminTab}
-            setActiveTab={setActiveAdminTab}
-            activeSettingsSubTab={activeSettingsSubTab}
-            setActiveSettingsSubTab={setActiveSettingsSubTab}
-            election={election}
-            isMobileOpen={isMobileSidebarOpen}
-            setIsMobileOpen={setIsMobileSidebarOpen}
-            currentUser={currentUser}
-            onOpenSuperAdminPanel={() => setIsAdminSettingsModalOpen(true)}
-          />
-
-          {/* Right Column Content Area: Main Content + Bottom Footer */}
-          <div className="flex-1 min-w-0 flex flex-col min-h-0 w-full">
-            <main className="flex-1 min-w-0 w-full p-4 sm:p-6 lg:p-8 overflow-y-auto block">
-              
-              {/* Multi-Election Manager Control Bar */}
-              <ElectionManagerHeader
+          {/* If Super Admin Master Mode is enabled, render dedicated SuperAdminDashboard */}
+          {currentUser.role === 'SUPER_ADMIN' && isSuperAdminMasterMode ? (
+            <div className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+              <SuperAdminDashboard
+                currentUser={currentUser}
                 elections={elections}
-                activeElection={election}
-                onSelectElection={handleSelectElection}
-                onCreateElection={handleCreateElection}
-                onUpdateElection={handleUpdateElection}
+                onSelectElection={(id) => {
+                  handleSelectElection(id);
+                  setIsSuperAdminMasterMode(false);
+                }}
+                onOpenSettingsModal={() => setIsAdminSettingsModalOpen(true)}
+                onOpenCreateModal={handleCreateElection}
                 onDeleteElection={handleDeleteElection}
-                onOpenVoterPortal={() => changeView('voter')}
+                onSwitchToOrganizerMode={() => setIsSuperAdminMasterMode(false)}
               />
+            </div>
+          ) : (
+            <>
+              {/* Admin Sidebar Navigation */}
+              <Sidebar
+                activeTab={activeAdminTab}
+                setActiveTab={setActiveAdminTab}
+                activeSettingsSubTab={activeSettingsSubTab}
+                setActiveSettingsSubTab={setActiveSettingsSubTab}
+                election={election}
+                isMobileOpen={isMobileSidebarOpen}
+                setIsMobileOpen={setIsMobileSidebarOpen}
+                currentUser={currentUser}
+                onOpenSuperAdminPanel={() => setIsAdminSettingsModalOpen(true)}
+              />
+
+              {/* Right Column Content Area: Main Content + Bottom Footer */}
+              <div className="flex-1 min-w-0 flex flex-col min-h-0 w-full">
+                <main className="flex-1 min-w-0 w-full p-4 sm:p-6 lg:p-8 overflow-y-auto block">
+                  
+                  {/* Multi-Election Manager Control Bar */}
+                  <div className="space-y-3 mb-6">
+                    {currentUser.role === 'SUPER_ADMIN' && (
+                      <div className="flex items-center justify-between p-3 bg-purple-50 border border-purple-200 rounded-2xl">
+                        <div className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-purple-600 animate-ping" />
+                          You are currently in Election Organizer View.
+                        </div>
+                        <button
+                          onClick={() => setIsSuperAdminMasterMode(true)}
+                          className="px-3 py-1 bg-purple-700 hover:bg-purple-800 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+                        >
+                          Return to Super Admin Dashboard
+                        </button>
+                      </div>
+                    )}
+
+                    <ElectionManagerHeader
+                      elections={elections}
+                      activeElection={election}
+                      onSelectElection={handleSelectElection}
+                      onCreateElection={handleCreateElection}
+                      onUpdateElection={handleUpdateElection}
+                      onDeleteElection={handleDeleteElection}
+                      onOpenVoterPortal={() => changeView('voter')}
+                    />
+                  </div>
 
               {/* Mobile Sidebar Toggle Button */}
               <div className="lg:hidden mb-4 flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200">
@@ -475,9 +512,10 @@ export default function App() {
               </div>
             </footer>
           </div>
-
-        </div>
+        </>
       )}
+    </div>
+  )}
 
       {/* cPanel Deployment Guide Modal */}
       <CpanelGuideModal
